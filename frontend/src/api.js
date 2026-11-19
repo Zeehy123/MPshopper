@@ -16,12 +16,17 @@ const json = (method, body) => ({
 });
 
 export const api = {
+  createCategory: (data) => request("/categories/", json("POST", data)),
+  createStore: (data) => request("/stores/", json("POST", data)),
+  getProduct: (id) => request(`/products/${id}/`),
   getProducts: (params = "") => request(`/products/${params}`),
   createProduct: (formData) =>
     request("/products/", { method: "POST", body: formData }),
   updateProduct: (id, data) => request(`/products/${id}/`, json("PATCH", data)),
   getCategories: () => request("/categories/"),
   getStores: () => request("/stores/"),
+  getStorePrices: (id) => request(`/products/${id}/store-prices/`),
+  getPriceHistory: (id) => request(`/price-history/?product=${id}`),
   getCart: () => request("/trips/cart/"),
   updateTrip: (id, data) => request(`/trips/${id}/`, json("PATCH", data)),
   addItem: (data) => request("/items/", json("POST", data)),
@@ -29,7 +34,7 @@ export const api = {
   removeItem: (id) => request(`/items/${id}/`, { method: "DELETE" }),
   completeTrip: (id, data = {}) =>
     request(`/trips/${id}/complete/`, json("POST", data)),
-  getTrips: () => request("/trips/"),
+  getTrips: (params = "") => request(`/trips/${params}`),
   repeatTrip: (id) => request(`/trips/${id}/repeat/`, { method: "POST" }),
   getStats: () => request("/stats/"),
 };

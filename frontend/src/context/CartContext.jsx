@@ -44,7 +44,16 @@ export function CartProvider({ children }) {
     await api.removeItem(id);
     await refreshCart();
   }
+  async function updateTrip(data) {
+    await api.updateTrip(cart.id, data);
+    await refreshCart();
+  }
 
+  async function finishShopping() {
+    const done = await api.completeTrip(cart.id);
+    await refreshCart(); // the server creates a fresh empty cart
+    return done;
+  }
   const itemCount = cart ? cart.items.length : 0;
   const inCart = (productId) =>
     cart ? cart.items.some((i) => i.product === productId) : false;
@@ -60,6 +69,8 @@ export function CartProvider({ children }) {
         addToCart,
         updateItem,
         removeItem,
+        updateTrip,
+        finishShopping,
       }}
     >
       {children}

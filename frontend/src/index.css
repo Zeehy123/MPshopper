@@ -106,3 +106,400 @@ select {
   border-radius: 12px;
   padding: 1rem;
 }
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.15rem 0;
+}
+.error {
+  color: var(--up);
+  font-size: 0.85rem;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.page-header h1 {
+  margin: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.chip {
+  background: #e9ece8;
+  color: var(--text);
+  border-radius: 999px;
+}
+.chip.active {
+  background: var(--green);
+  color: #fff;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.product-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.product-img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+}
+.product-img.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  background: #eef1ec;
+}
+.product-body {
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+}
+.product-body h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.price {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.trend {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.trend.up {
+  color: var(--up);
+}
+.trend.down {
+  color: var(--down);
+}
+
+.link-btn {
+  background: none;
+  color: var(--green);
+  padding: 0;
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+.price-edit {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.price-edit input {
+  width: 100%;
+}
+
+.add-btn {
+  margin-top: auto;
+  width: 100%;
+}
+.empty {
+  text-align: center;
+  padding: 2rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 560px;
+}
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.form input,
+.form select {
+  font-weight: 400;
+  width: 100%;
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.inline-add {
+  display: flex;
+  gap: 0.5rem;
+}
+.preview {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+@media (max-width: 520px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+.cart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.cart-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 90px 120px 110px 40px;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+}
+.cart-img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.cart-img.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef1ec;
+  font-size: 1.5rem;
+}
+.cart-info h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.cart-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.cart-field input {
+  width: 100%;
+}
+.cart-total {
+  font-weight: 700;
+  text-align: right;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 560px;
+}
+.summary label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.summary input,
+.summary select {
+  width: 100%;
+}
+.grand-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.25rem;
+}
+
+.bar {
+  height: 10px;
+  background: #e9ece8;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  transition: width 0.3s;
+  background: var(--green);
+}
+.bar-fill.near {
+  background: var(--warn);
+}
+.bar-fill.over {
+  background: var(--up);
+}
+.budget-text {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+}
+.budget-text.near {
+  color: var(--warn);
+}
+.budget-text.over {
+  color: var(--up);
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .cart-row {
+    grid-template-columns: 56px 1fr 40px;
+  }
+  .cart-field,
+  .cart-total {
+    grid-column: 2 / 3;
+    text-align: left;
+  }
+}
+.trip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.trip-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.trip-head h3 {
+  margin: 0;
+}
+.trip-money {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.trip-money strong {
+  font-size: 1.2rem;
+}
+.trip-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.trip-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+.trip-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+}
+.trip-table th,
+.trip-table td {
+  padding: 0.45rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+.trip-table td:last-child,
+.trip-table th:last-child {
+  text-align: right;
+}
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.stat strong {
+  font-size: 1.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.barlist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.barlist-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 100px;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.barlist-track {
+  height: 12px;
+  background: #e9ece8;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.barlist-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 999px;
+}
+.barlist-value {
+  text-align: right;
+  font-weight: 600;
+}
+
+.top-list {
+  padding-left: 1.2rem;
+  margin: 0;
+}
+.top-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.trip-table tr.cheapest td {
+  color: var(--green);
+  font-weight: 700;
+}
+details {
+  margin-top: 1rem;
+}
+summary {
+  cursor: pointer;
+  color: var(--green);
+}

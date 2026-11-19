@@ -86,7 +86,13 @@ class TripViewSet(viewsets.ModelViewSet):
     queryset = Trip.objects.select_related('store').prefetch_related(
         'items__product')
     serializer_class = TripSerializer
-
+    def get_queryset(self):
+        qs = Trip.objects.select_related('store').prefetch_related(
+            'items__product')
+        completed = self.request.query_params.get('completed')
+        if completed is not None:
+            qs = qs.filter(is_completed=completed.lower() == 'true')
+        return qs
     @action(detail=False, methods=['get'])
     def cart(self, request):
         """Return the open cart, creating one if none exists."""
@@ -130,12 +136,15 @@ class TripViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def repeat(self, request, pk=None):
         """Start a new cart from a past trip."""
-        if Trip.objects.filter(is_completed=False).exists():
+        open_cart = Trip.objects.filter(is_completed=False).first()
+        if open_cart and open_cart.items.exists():
             return Response(
                 {'detail': 'Finish or clear your current cart first.'},
                 status=status.HTTP_400_BAD_REQUEST)
         old = self.get_object()
         with transaction.atomic():
+            if open_cart:
+                open_cart.delete()  # it was empty
             new = Trip.objects.create(store=old.store, budget=old.budget)
             for item in old.items.select_related('product'):
                 TripItem.objects.create(
@@ -144,7 +153,6 @@ class TripViewSet(viewsets.ModelViewSet):
                 )
         return Response(self.get_serializer(new).data,
                         status=status.HTTP_201_CREATED)
-
 
 class TripItemViewSet(viewsets.ModelViewSet):
     serializer_class = TripItemSerializer

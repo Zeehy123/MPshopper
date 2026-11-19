@@ -1,3 +1,180 @@
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../api";
+import { useCart } from "../context/CartContext";
+import CartItemRow from "../components/CartItemRow";
+import { formatMoney } from "../utils";
+
 export default function Cart() {
-  return <h1>Dashboard</h1>;
+  const { cart, error, updateTrip, finishShopping } = useCart();
+  const navigate = useNavigate();
+  const [stores, setStores] = useState([]);
+  const [newStore, setNewStore] = useState("");
+  const [budget, setBudget] = useState("");
+  const [message, setMessage] = useState("");
+  const [finishing, setFinishing] = useState(false);
+
+  useEffect(() => {
+    api
+      .getStores()
+      .then(setStores)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (cart) setBudget(cart.budget ?? "");
+  }, [cart?.budget]);
+
+  if (error) return <p className="error">Could not load cart: {error}</p>;
+  if (!cart) return <p className="muted">Loading...</p>;
+
+  async function saveBudget() {
+    const value = budget === "" ? null : budget;
+    if (value !== null && Number(value) < 0)
+      return setMessage("Budget cannot be negative.");
+    if (String(value ?? "") === String(cart.budget ?? "")) return;
+    try {
+      setMessage("");
+      await updateTrip({ budget: value });
+    } catch (e) {
+      setMessage(e.message);
+    }
+  }
+
+  async function changeStore(e) {
+    try {
+      setMessage("");
+      await updateTrip({ store: e.target.value || null });
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
+  async function addStore() {
+    const name = newStore.trim();
+    if (!name) return;
+    try {
+      const created = await api.createStore({ name });
+      setStores((list) => [...list, created]);
+      setNewStore("");
+      await updateTrip({ store: created.id });
+    } catch (e) {
+      setMessage(e.message);
+    }
+  }
+
+  async function handleFinish() {
+    const where = cart.store_name ? ` at ${cart.store_name}` : "";
+    if (
+      !window.confirm(
+        `Finish this trip${where}? Prices you changed will be saved.`,
+      )
+    )
+      return;
+    try {
+      setFinishing(true);
+      setMessage("");
+      await finishShopping();
+      navigate("/history");
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setFinishing(false);
+    }
+  }
+
+  const percent =
+    cart.budget && Number(cart.budget) > 0
+      ? Math.min(100, (Number(cart.total) / Number(cart.budget)) * 100)
+      : 0;
+
+  return (
+    <>
+      <h1>Shopping Cart</h1>
+
+      {cart.items.length === 0 ? (
+        <div className="card empty">
+          <p>Your cart is empty.</p>
+          <Link to="/">Pick items from the dashboard</Link>
+        </div>
+      ) : (
+        <div className="cart-list">
+          {cart.items.map((item) => (
+            <CartItemRow key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+
+      <div className="card summary">
+        <div className="row">
+          <label>
+            Store
+            <select value={cart.store ?? ""} onChange={changeStore}>
+              <option value="">Not specified</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Budget (₦)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="No budget"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              onBlur={saveBudget}
+              onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+            />
+          </label>
+        </div>
+
+        <div className="inline-add">
+          <input
+            placeholder="Shopping somewhere new? Add a store"
+            value={newStore}
+            onChange={(e) => setNewStore(e.target.value)}
+          />
+          <button type="button" className="secondary" onClick={addStore}>
+            Add
+          </button>
+        </div>
+
+        {cart.budget && (
+          <div>
+            <div className="bar">
+              <div
+                className={`bar-fill ${cart.budget_status}`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            <p className={`budget-text ${cart.budget_status}`}>
+              {cart.over_budget
+                ? `${formatMoney(Math.abs(cart.remaining))} over budget`
+                : `${formatMoney(cart.remaining)} left`}
+              {cart.budget_status === "near" && " — almost at your limit"}
+            </p>
+          </div>
+        )}
+
+        <div className="grand-total">
+          <span>Total</span>
+          <strong>{formatMoney(cart.total)}</strong>
+        </div>
+
+        {message && <p className="error">{message}</p>}
+
+        <button
+          onClick={handleFinish}
+          disabled={finishing || cart.items.length === 0}
+        >
+          {finishing ? "Saving..." : "Finish shopping"}
+        </button>
+      </div>
+    </>
+  );
 }
