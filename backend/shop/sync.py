@@ -1,0 +1,190 @@
+import uuid
+from datetime import timedelta
+from decimal import Decimal
+
+from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import (
+    Category, Store, Product, PriceHistory, Trip, TripItem, Tombstone,
+)
+
+# parents come before children, so references always resolve
+MODELS = {
+    'categories': Category,
+    'stores': Store,
+    'products': Product,
+    'priceHistory': PriceHistory,
+    'trips': Trip,
+    'tripItems': TripItem,
+}
+RELATED = {
+    'products': ('category',),
+    'priceHistory': ('product', 'store'),
+    'trips': ('store',),
+    'tripItems': ('trip', 'product'),
+}
+
+
+class SyncError(Exception):
+    pass
+
+
+def dec(value):
+    return None if value is None else Decimal(str(value)).quantize(Decimal('0.01'))
+
+
+def ref(model, cid):
+    if not cid:
+        return None
+    obj = model.objects.filter(client_id=cid).first()
+    if obj is None:
+        raise SyncError(f'{model.__name__} {cid} is not on the server yet')
+    return obj
+
+
+def dt(value):
+    parsed = parse_datetime(value or '')
+    if parsed is None:
+        raise SyncError(f'Bad date: {value!r}')
+    return parsed
+
+
+def fields(table, w):
+    if table == 'categories':
+        return {'name': w['name']}
+    if table == 'stores':
+        return {'name': w['name'], 'location': w.get('location') or ''}
+    if table == 'products':
+        return {
+            'name': w['name'], 'unit': w['unit'],
+            'category': ref(Category, w.get('category_id')),
+            'default_quantity': dec(w['default_quantity']),
+            'current_price': dec(w['current_price']),
+        }
+    if table == 'priceHistory':
+        return {
+            'product': ref(Product, w['product_id']),
+            'store': ref(Store, w.get('store_id')),
+            'price': dec(w['price']), 'recorded_at': dt(w['recorded_at']),
+        }
+    if table == 'trips':
+        return {
+            'store': ref(Store, w.get('store_id')), 'date': dt(w['date']),
+            'budget': dec(w.get('budget')), 'is_completed': bool(w['is_completed']),
+        }
+    if table == 'tripItems':
+        return {
+            'trip': ref(Trip, w['trip_id']), 'product': ref(Product, w['product_id']),
+            'quantity': dec(w['quantity']), 'price_paid': dec(w['price_paid']),
+            'created_at': dt(w['created_at']),
+        }
+    raise SyncError(f'Unknown table {table}')
+
+
+def upsert(table, w):
+    model = MODELS[table]
+    cid = uuid.UUID(w['id'])
+    data = fields(table, w)
+    obj = model.objects.filter(client_id=cid).first()
+    if obj is None:
+        model.objects.create(client_id=cid, **data)
+        return
+    client_time = parse_datetime(w.get('updated_at') or '')
+    if client_time and obj.modified_at > client_time:
+        return  # the server copy is newer; it comes back on the next pull
+    for key, value in data.items():
+        setattr(obj, key, value)
+    obj.save()
+
+
+def remove(table, cid):
+    model = MODELS[table]
+    cid = uuid.UUID(cid)
+    obj = model.objects.filter(client_id=cid).first()
+    if obj:
+        try:
+            obj.delete()
+        except ProtectedError:
+            return
+    Tombstone.objects.create(table=table, client_id=cid)
+
+
+def wire(table, o, request):
+    cid = lambda x: str(x.client_id) if x else None
+    out = {'id': str(o.client_id), 'modified_at': o.modified_at.isoformat()}
+    if table == 'categories':
+        out.update(name=o.name)
+    elif table == 'stores':
+        out.update(name=o.name, location=o.location)
+    elif table == 'products':
+        out.update(
+            name=o.name, unit=o.unit, category_id=cid(o.category),
+            default_quantity=str(o.default_quantity),
+            current_price=str(o.current_price),
+            image=request.build_absolute_uri(o.image.url) if o.image else None,
+        )
+    elif table == 'priceHistory':
+        out.update(
+            product_id=cid(o.product), store_id=cid(o.store),
+            price=str(o.price), recorded_at=o.recorded_at.isoformat(),
+        )
+    elif table == 'trips':
+        out.update(
+            store_id=cid(o.store), date=o.date.isoformat(),
+            budget=None if o.budget is None else str(o.budget),
+            is_completed=o.is_completed,
+        )
+    elif table == 'tripItems':
+        out.update(
+            trip_id=cid(o.trip), product_id=cid(o.product),
+            quantity=str(o.quantity), price_paid=str(o.price_paid),
+            created_at=o.created_at.isoformat(),
+        )
+    return out
+
+
+class SyncPushView(APIView):
+    def post(self, request):
+        upserts = request.data.get('upserts', {})
+        deletes = request.data.get('deletes', [])
+        try:
+            with transaction.atomic():  # all changes are saved, or none
+                for table in MODELS:
+                    for w in upserts.get(table, []):
+                        upsert(table, w)
+                for d in deletes:
+                    remove(d['table'], d['id'])
+        except (SyncError, IntegrityError, KeyError, ValueError, TypeError) as e:
+            return Response({'detail': f'Sync rejected: {e}'}, status=400)
+        return Response({'ok': True})
+
+
+class SyncPullView(APIView):
+    def get(self, request):
+        since = parse_datetime(request.query_params.get('since') or '')
+        # a small overlap, so a record saved while we read is never missed
+        cursor = timezone.now() - timedelta(seconds=5)
+
+        changes = {}
+        for table, model in MODELS.items():
+            qs = model.objects.all()
+            if table in RELATED:
+                qs = qs.select_related(*RELATED[table])
+            if since:
+                qs = qs.filter(modified_at__gt=since)
+            changes[table] = [wire(table, o, request) for o in qs.order_by('modified_at')]
+
+        tombs = Tombstone.objects.all()
+        if since:
+            tombs = tombs.filter(deleted_at__gt=since)
+
+        return Response({
+            'cursor': cursor.isoformat(),
+            'changes': changes,
+            'deleted': [{'table': t.table, 'id': str(t.client_id)} for t in tombs],
+        })

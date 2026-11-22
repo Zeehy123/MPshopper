@@ -4,6 +4,7 @@ from .views import (
     CategoryViewSet, StoreViewSet, ProductViewSet,
     PriceHistoryViewSet, TripViewSet, TripItemViewSet, StatsView,
 )
+from .sync import SyncPushView, SyncPullView
 
 router = DefaultRouter()
 router.register('categories', CategoryViewSet, basename='category')
@@ -13,7 +14,9 @@ router.register('price-history', PriceHistoryViewSet, basename='price-history')
 router.register('trips', TripViewSet, basename='trip')
 router.register('items', TripItemViewSet, basename='item')
 
-urlpatterns = [
-    *router.urls,
-    path('stats/', StatsView.as_view(), name='stats'),
+
+urlpatterns = router.urls + [
+    path('stats/', StatsView.as_view()),
+    path('sync/push/', SyncPushView.as_view()),
+    path('sync/pull/', SyncPullView.as_view()),
 ]

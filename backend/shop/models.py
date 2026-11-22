@@ -2,8 +2,25 @@ from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
+import uuid
+from decimal import Decimal
+from django.db import models
+from django.utils import timezone
 
-class Category(models.Model):
+
+class SyncModel(models.Model):
+    client_id = models.UUIDField(null=True, blank=True, unique=True, editable=False)
+    modified_at = models.DateTimeField(default=timezone.now, db_index=True, editable=False)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if self.client_id is None:
+            self.client_id = uuid.uuid4()
+        self.modified_at = timezone.now()
+        super().save(*args, **kwargs)
+class Category(SyncModel):
     name = models.CharField(max_length=100, unique=True)
 
     class Meta:
@@ -13,7 +30,7 @@ class Category(models.Model):
         return self.name
 
 
-class Store(models.Model):
+class Store(SyncModel):
     name = models.CharField(max_length=150)
     location = models.CharField(max_length=200, blank=True)
 
@@ -21,7 +38,7 @@ class Store(models.Model):
         return self.name
 
 
-class Product(models.Model):
+class Product(SyncModel):
     name = models.CharField(max_length=150)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
     category = models.ForeignKey(
@@ -39,7 +56,7 @@ class Product(models.Model):
         return f'{self.name} ({self.unit})'
 
 
-class PriceHistory(models.Model):
+class PriceHistory(SyncModel):
     product = models.ForeignKey(
         Product, on_delete=models.CASCADE, related_name='price_history')
     store = models.ForeignKey(
@@ -54,7 +71,7 @@ class PriceHistory(models.Model):
         return f'{self.product.name}: {self.price} on {self.recorded_at:%Y-%m-%d}'
 
 
-class Trip(models.Model):
+class Trip(SyncModel):
     store = models.ForeignKey(
         Store, on_delete=models.SET_NULL, null=True, blank=True)
     date = models.DateTimeField(default=timezone.now)
@@ -74,17 +91,22 @@ class Trip(models.Model):
         return f'Trip {self.pk} ({status})'
 
 
-class TripItem(models.Model):
+class TripItem(SyncModel):
     trip = models.ForeignKey(
         Trip, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     quantity = models.DecimalField(
         max_digits=8, decimal_places=2, default=Decimal('1'))
     price_paid = models.DecimalField(max_digits=10, decimal_places=2)
-
+    created_at = models.DateTimeField(default=timezone.now)
     @property
     def line_total(self):
         return self.quantity * self.price_paid
 
     def __str__(self):
         return f'{self.quantity} x {self.product.name}'
+class Tombstone(models.Model):
+   
+    table = models.CharField(max_length=30)
+    client_id = models.UUIDField()
+    deleted_at = models.DateTimeField(default=timezone.now, db_index=True)
