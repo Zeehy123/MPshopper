@@ -13,8 +13,8 @@ export default defineConfig({
         short_name: "Grocery",
         description:
           "Plan, price and track your grocery shopping, even offline.",
-        theme_color: "#2f7d4f",
-        background_color: "#f6f7f4",
+        theme_color: "#15533a",
+        background_color: "#f6faf2",
         display: "standalone",
         start_url: "/",
         icons: [
@@ -31,6 +31,11 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
+        // fonts must be precached or the app falls back to plain fonts offline
+        globPatterns: [
+          "**/*.{js,css,html,ico,png,svg}",
+          "**/*-latin*-wght-normal-*.woff2",
+        ],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/media/"),

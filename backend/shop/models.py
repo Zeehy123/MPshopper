@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.db import models
 from django.utils import timezone
-
+from django.conf import settings
 import uuid
 from decimal import Decimal
 from django.db import models
@@ -9,6 +9,7 @@ from django.utils import timezone
 
 
 class SyncModel(models.Model):
+    owner=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.CASCADE,related_name="+",editable=False,)
     client_id = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     modified_at = models.DateTimeField(default=timezone.now, db_index=True, editable=False)
 
@@ -21,14 +22,22 @@ class SyncModel(models.Model):
         self.modified_at = timezone.now()
         super().save(*args, **kwargs)
 class Category(SyncModel):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
 
     class Meta:
         verbose_name_plural = 'categories'
+        constraints=[models.UniqueConstraint(fields=['owner','name'],name='uniq_category_owner_name'),]
 
     def __str__(self):
         return self.name
 
+class Tombstone(models.Model):
+    owner=models.ForeignKey(
+        settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.CASCADE,related_name='+'
+    )
+    table=models.CharField(max_length=30)
+    client_id=models.UUIDField()
+    deleted_at=models.DateTimeField(default=timezone.now, db_index=True)
 
 class Store(SyncModel):
     name = models.CharField(max_length=150)
@@ -105,8 +114,3 @@ class TripItem(SyncModel):
 
     def __str__(self):
         return f'{self.quantity} x {self.product.name}'
-class Tombstone(models.Model):
-   
-    table = models.CharField(max_length=30)
-    client_id = models.UUIDField()
-    deleted_at = models.DateTimeField(default=timezone.now, db_index=True)

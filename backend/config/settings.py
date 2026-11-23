@@ -40,8 +40,20 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'shop',
+    'rest_framework.authtoken',
+
 ]
 
+REST_FRAMEWORK={
+  'DEFAULT_AUTHENTICATION_CLASSES':[
+    'rest_framework.authentication.TokenAuthentication'
+  ],
+  'DEFAULT_PERMISSION_CLASSES':[
+    'rest_framework.permissions.IsAuthenticated',
+  ],
+  'DEFAULT_THROTTLE_RATES':{'auth':'20/min'},
+}
+ALLOW_REGISTRATION=True
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',

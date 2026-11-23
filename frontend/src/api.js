@@ -11,7 +11,7 @@ async function must(table, id, label) {
   return row;
 }
 
-// ---------- images: blobs in the database -> URLs for <img> ----------
+// ---------- images: -> URLs for <img> ----------
 const urlCache = new Map();
 function imageUrl(p) {
   if (!p?.image) return null;
@@ -23,7 +23,6 @@ function imageUrl(p) {
   return url;
 }
 
-// ---------- shape records like the server used to ----------
 async function productOut(p) {
   const hist = await db.priceHistory
     .where("productId")
@@ -94,7 +93,7 @@ async function tripOut(t) {
   };
 }
 
-// ---------- the cart (an open trip) ----------
+// ---------- the cart (open trip) ----------
 async function findOrCreateCart() {
   const open = (await db.trips.toArray())
     .filter((t) => !t.isCompleted)
@@ -154,6 +153,7 @@ const localApi = {
       currentPrice: price,
       categoryId: fd.get("category") || null,
       image: image instanceof Blob ? image : null,
+      imagePending: image instanceof Blob,
       imageVersion: 1,
       createdAt: now(),
     };

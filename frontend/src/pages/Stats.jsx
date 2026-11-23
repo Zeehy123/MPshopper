@@ -4,6 +4,7 @@ import { api } from "../api";
 import BarList from "../components/BarList";
 import PriceCompare from "../components/PriceCompare";
 import { formatMoney } from "../utils";
+import { useSync } from "../useSync";
 
 const monthLabel = (ym) => {
   const [y, m] = ym.split("-");
@@ -17,12 +18,14 @@ export default function Stats() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
 
+  const { dataVersion } = useSync();
+
   useEffect(() => {
     api
       .getStats()
       .then(setStats)
       .catch((e) => setError(e.message));
-  }, []);
+  }, [dataVersion]);
 
   if (error) return <p className="error">{error}</p>;
   if (!stats) return <p className="muted">Loading...</p>;

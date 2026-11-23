@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import Botanicals from "./components/Botanicals";
 import Dashboard from "./pages/Dashboard";
 import AddProduct from "./pages/AddProduct";
 import Cart from "./pages/Cart";
@@ -9,6 +10,7 @@ import Stats from "./pages/Stats";
 export default function App() {
   return (
     <>
+      <Botanicals />
       <Navbar />
       <main className="container">
         <Routes>

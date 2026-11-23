@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { formatMoney } from "../utils";
+import { useSync } from "../useSync";
 
 export default function PriceCompare() {
   const [products, setProducts] = useState([]);
@@ -8,13 +9,14 @@ export default function PriceCompare() {
   const [rows, setRows] = useState([]);
   const [history, setHistory] = useState([]);
   const [error, setError] = useState("");
+  const { dataVersion } = useSync();
 
   useEffect(() => {
     api
       .getProducts()
       .then(setProducts)
       .catch((e) => setError(e.message));
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     if (!selected) {
@@ -29,7 +31,7 @@ export default function PriceCompare() {
         setError("");
       })
       .catch((e) => setError(e.message));
-  }, [selected]);
+  }, [selected, dataVersion]);
 
   return (
     <div className="card">

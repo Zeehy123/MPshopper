@@ -6,12 +6,14 @@ import {
   useCallback,
 } from "react";
 import { api } from "../api";
+import { useSync } from "../useSync";
 
 const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(null);
   const [error, setError] = useState("");
+  const { dataVersion } = useSync();
 
   const refreshCart = useCallback(async () => {
     try {
@@ -24,7 +26,7 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     refreshCart();
-  }, [refreshCart]);
+  }, [refreshCart, dataVersion]);
 
   async function addToCart(product) {
     await api.addItem({

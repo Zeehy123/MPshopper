@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#2f7d4f"/>
-  <text x="256" y="340" font-size="280" text-anchor="middle">🛒</text>
+  <rect width="512" height="512" fill="#15533a"/>
+  <path d="M256 150c-84 0-146 56-146 132s64 124 146 124 146-48 146-124-62-132-146-132z" fill="#e5533d"/>
+  <ellipse cx="170" cy="260" rx="34" ry="20" transform="rotate(-35 170 260)" fill="#fff" opacity=".35"/>
+  <path d="M256 170c-24 0-46 4-68 20 18 4 34 12 42 28 8-12 18-20 26-20s18 8 26 20c8-16 24-24 42-28-22-16-44-20-68-20z" fill="#7fd08c"/>
+  <path d="M256 170v-52" stroke="#7fd08c" stroke-width="16" stroke-linecap="round"/>
 </svg>

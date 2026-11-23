@@ -38,10 +38,10 @@ def dec(value):
     return None if value is None else Decimal(str(value)).quantize(Decimal('0.01'))
 
 
-def ref(model, cid):
+def ref(model, cid, owner):
     if not cid:
         return None
-    obj = model.objects.filter(client_id=cid).first()
+    obj = model.objects.filter(client_id=cid, owner=owner).first()
     if obj is None:
         raise SyncError(f'{model.__name__} {cid} is not on the server yet')
     return obj
@@ -54,7 +54,7 @@ def dt(value):
     return parsed
 
 
-def fields(table, w):
+def fields(table, w, owner):
     if table == 'categories':
         return {'name': w['name']}
     if table == 'stores':
@@ -62,37 +62,38 @@ def fields(table, w):
     if table == 'products':
         return {
             'name': w['name'], 'unit': w['unit'],
-            'category': ref(Category, w.get('category_id')),
+            'category': ref(Category, w.get('category_id'), owner),
             'default_quantity': dec(w['default_quantity']),
             'current_price': dec(w['current_price']),
         }
     if table == 'priceHistory':
         return {
-            'product': ref(Product, w['product_id']),
-            'store': ref(Store, w.get('store_id')),
+            'product': ref(Product, w['product_id'], owner),
+            'store': ref(Store, w.get('store_id'), owner),
             'price': dec(w['price']), 'recorded_at': dt(w['recorded_at']),
         }
     if table == 'trips':
         return {
-            'store': ref(Store, w.get('store_id')), 'date': dt(w['date']),
+            'store': ref(Store, w.get('store_id'), owner), 'date': dt(w['date']),
             'budget': dec(w.get('budget')), 'is_completed': bool(w['is_completed']),
         }
     if table == 'tripItems':
         return {
-            'trip': ref(Trip, w['trip_id']), 'product': ref(Product, w['product_id']),
+            'trip': ref(Trip, w['trip_id'], owner),
+            'product': ref(Product, w['product_id'], owner),
             'quantity': dec(w['quantity']), 'price_paid': dec(w['price_paid']),
             'created_at': dt(w['created_at']),
         }
     raise SyncError(f'Unknown table {table}')
 
 
-def upsert(table, w):
+def upsert(table, w, owner):
     model = MODELS[table]
     cid = uuid.UUID(w['id'])
-    data = fields(table, w)
-    obj = model.objects.filter(client_id=cid).first()
+    data = fields(table, w, owner)
+    obj = model.objects.filter(client_id=cid, owner=owner).first()
     if obj is None:
-        model.objects.create(client_id=cid, **data)
+        model.objects.create(client_id=cid, owner=owner, **data)
         return
     client_time = parse_datetime(w.get('updated_at') or '')
     if client_time and obj.modified_at > client_time:
@@ -102,16 +103,16 @@ def upsert(table, w):
     obj.save()
 
 
-def remove(table, cid):
+def remove(table, cid, owner):
     model = MODELS[table]
     cid = uuid.UUID(cid)
-    obj = model.objects.filter(client_id=cid).first()
+    obj = model.objects.filter(client_id=cid, owner=owner).first()
     if obj:
         try:
             obj.delete()
         except ProtectedError:
             return
-    Tombstone.objects.create(table=table, client_id=cid)
+    Tombstone.objects.create(table=table, client_id=cid, owner=owner)
 
 
 def wire(table, o, request):
@@ -150,15 +151,16 @@ def wire(table, o, request):
 
 class SyncPushView(APIView):
     def post(self, request):
+        owner = request.user
         upserts = request.data.get('upserts', {})
         deletes = request.data.get('deletes', [])
         try:
             with transaction.atomic():  # all changes are saved, or none
                 for table in MODELS:
                     for w in upserts.get(table, []):
-                        upsert(table, w)
+                        upsert(table, w, owner)
                 for d in deletes:
-                    remove(d['table'], d['id'])
+                    remove(d['table'], d['id'], owner)
         except (SyncError, IntegrityError, KeyError, ValueError, TypeError) as e:
             return Response({'detail': f'Sync rejected: {e}'}, status=400)
         return Response({'ok': True})
@@ -166,20 +168,21 @@ class SyncPushView(APIView):
 
 class SyncPullView(APIView):
     def get(self, request):
+        owner = request.user
         since = parse_datetime(request.query_params.get('since') or '')
         # a small overlap, so a record saved while we read is never missed
         cursor = timezone.now() - timedelta(seconds=5)
 
         changes = {}
         for table, model in MODELS.items():
-            qs = model.objects.all()
+            qs = model.objects.filter(owner=owner)
             if table in RELATED:
                 qs = qs.select_related(*RELATED[table])
             if since:
                 qs = qs.filter(modified_at__gt=since)
             changes[table] = [wire(table, o, request) for o in qs.order_by('modified_at')]
 
-        tombs = Tombstone.objects.all()
+        tombs = Tombstone.objects.filter(owner=owner)
         if since:
             tombs = tombs.filter(deleted_at__gt=since)
 
@@ -188,3 +191,20 @@ class SyncPullView(APIView):
             'changes': changes,
             'deleted': [{'table': t.table, 'id': str(t.client_id)} for t in tombs],
         })
+
+
+class ProductImageView(APIView):
+    def post(self, request, client_id):
+        product = Product.objects.filter(client_id=client_id, owner=request.user).first()
+        if product is None:
+            return Response({'detail': 'Product is not on the server yet.'}, status=404)
+        image = request.FILES.get('image')
+        if image is None:
+            return Response({'detail': 'No image sent.'}, status=400)
+        if not (image.content_type or '').startswith('image/'):
+            return Response({'detail': 'File must be an image.'}, status=400)
+        if image.size > 5 * 1024 * 1024:
+            return Response({'detail': 'Image must be under 5 MB.'}, status=400)
+        product.image = image
+        product.save()
+        return Response({'image': request.build_absolute_uri(product.image.url)})

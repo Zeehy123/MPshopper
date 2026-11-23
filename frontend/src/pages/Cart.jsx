@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Check, Plus, ShoppingBasket } from "lucide-react";
 import { api } from "../api";
 import { useCart } from "../context/CartContext";
 import CartItemRow from "../components/CartItemRow";
@@ -90,23 +91,32 @@ export default function Cart() {
 
   return (
     <>
-      <h1>Shopping Cart</h1>
+      <h1>Shopping cart</h1>
 
-      {cart.items.length === 0 ? (
-        <div className="card empty">
-          <p>Your cart is empty.</p>
-          <Link to="/">Pick items from the dashboard</Link>
+      <div className="cart-layout">
+        <div>
+          {cart.items.length === 0 ? (
+            <div className="empty">
+              <span className="empty-icon">
+                <ShoppingBasket size={28} aria-hidden="true" />
+              </span>
+              <p>Your cart is empty.</p>
+              <Link to="/" className="btn-link">
+                Pick items from your shelf
+              </Link>
+            </div>
+          ) : (
+            <div className="cart-list">
+              {cart.items.map((item) => (
+                <CartItemRow key={item.id} item={item} />
+              ))}
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="cart-list">
-          {cart.items.map((item) => (
-            <CartItemRow key={item.id} item={item} />
-          ))}
-        </div>
-      )}
 
-      <div className="card summary">
-        <div className="row">
+        <aside className="summary">
+          <h2>This trip</h2>
+
           <label>
             Store
             <select value={cart.store ?? ""} onChange={changeStore}>
@@ -118,10 +128,24 @@ export default function Cart() {
               ))}
             </select>
           </label>
+
+          <div className="inline-add">
+            <input
+              placeholder="New store name"
+              aria-label="New store name"
+              value={newStore}
+              onChange={(e) => setNewStore(e.target.value)}
+            />
+            <button type="button" className="secondary" onClick={addStore}>
+              <Plus size={18} aria-hidden="true" /> Add
+            </button>
+          </div>
+
           <label>
             Budget (₦)
             <input
               type="number"
+              inputMode="decimal"
               min="0"
               step="0.01"
               placeholder="No budget"
@@ -131,49 +155,32 @@ export default function Cart() {
               onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
             />
           </label>
-        </div>
 
-        <div className="inline-add">
-          <input
-            placeholder="Shopping somewhere new? Add a store"
-            value={newStore}
-            onChange={(e) => setNewStore(e.target.value)}
-          />
-          <button type="button" className="secondary" onClick={addStore}>
-            Add
-          </button>
-        </div>
-
-        {cart.budget && (
-          <div>
-            <div className="bar">
-              <div
-                className={`bar-fill ${cart.budget_status}`}
-                style={{ width: `${percent}%` }}
-              />
+          {cart.budget && (
+            <div>
+              <div className="bar">
+                <div className={`bar-fill ${cart.budget_status}`} style={{ width: `${percent}%` }} />
+              </div>
+              <p className={`budget-text ${cart.budget_status}`}>
+                {cart.over_budget
+                  ? `${formatMoney(Math.abs(cart.remaining))} over budget`
+                  : `${formatMoney(cart.remaining)} left`}
+                {cart.budget_status === "near" && ". Almost at your limit."}
+              </p>
             </div>
-            <p className={`budget-text ${cart.budget_status}`}>
-              {cart.over_budget
-                ? `${formatMoney(Math.abs(cart.remaining))} over budget`
-                : `${formatMoney(cart.remaining)} left`}
-              {cart.budget_status === "near" && " — almost at your limit"}
-            </p>
+          )}
+
+          <div className="grand-total">
+            <span>Total</span>
+            <strong>{formatMoney(cart.total)}</strong>
           </div>
-        )}
 
-        <div className="grand-total">
-          <span>Total</span>
-          <strong>{formatMoney(cart.total)}</strong>
-        </div>
+          {message && <p className="error">{message}</p>}
 
-        {message && <p className="error">{message}</p>}
-
-        <button
-          onClick={handleFinish}
-          disabled={finishing || cart.items.length === 0}
-        >
-          {finishing ? "Saving..." : "Finish shopping"}
-        </button>
+          <button onClick={handleFinish} disabled={finishing || cart.items.length === 0}>
+            <Check size={18} aria-hidden="true" /> {finishing ? "Saving" : "Finish shopping"}
+          </button>
+        </aside>
       </div>
     </>
   );

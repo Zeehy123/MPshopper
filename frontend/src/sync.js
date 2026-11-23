@@ -1,5 +1,6 @@
 import { db, now } from "./db";
-
+import { liveQuery } from "dexie";
+import { authHeaders, getToken, clearAuth } from "./auth";
 const BASE = import.meta.env.VITE_API_URL;
 const ORDER = [
   "categories",
@@ -13,8 +14,14 @@ const ORDER = [
 async function call(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
+    headers: { ...authHeaders(), ...(options.headers || {}) },
     signal: AbortSignal.timeout(20000),
   });
+  if (res.status === 401) {
+    clearAuth();
+    window.dispatchEvent(new Event("auth-expired"));
+    throw new Error("Session expired. Please log in again.");
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Sync failed (${res.status})`);
@@ -85,6 +92,7 @@ const fromWire = {
 
     image: images[w.id] ?? old?.image ?? null,
     imageUrl: w.image ?? old?.imageUrl ?? null,
+    imagePending: old?.imagePending ?? false,
     imageVersion: images[w.id]
       ? (old?.imageVersion ?? 0) + 1
       : (old?.imageVersion ?? 1),
@@ -117,7 +125,33 @@ const fromWire = {
     updatedAt: w.modified_at,
   }),
 };
-
+async function uploadImages() {
+  const waiting = (await db.products.toArray()).filter(
+    (p) => p.imagePending && p.image,
+  );
+  let uploaded = 0;
+  for (const p of waiting) {
+    const form = new FormData();
+    const ext =
+      (p.image.type || "image/jpeg").split("/")[1]?.split("+")[0] || "jpg";
+    form.append("image", p.image, `${p.id}.${ext}`);
+    try {
+      const res = await fetch(`${BASE}/sync/image/${p.id}/`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+        signal: AbortSignal.timeout(60000),
+      });
+      if (!res.ok) continue; // try again on the next sync
+      const { image } = await res.json();
+      await db.products.update(p.id, { imagePending: false, imageUrl: image });
+      uploaded++;
+    } catch {
+      /* try again on the next sync */
+    }
+  }
+  return uploaded;
+}
 // ---------- send local changes ----------
 async function push() {
   const entries = await db.outbox.orderBy("seq").toArray();
@@ -147,7 +181,21 @@ async function push() {
   await db.outbox.bulkDelete(entries.map((e) => e.seq));
   return entries.length;
 }
-
+let running = null;
+export function sync() {
+  if (!getToken()) return Promise.reject(new Error("Not logged in."));
+  if (!navigator.onLine) return Promise.reject(new Error("You are offline."));
+  running ??= (async () => {
+    const pushed = await push();
+    const uploaded = await uploadImages(); // after push, so the product exists on the server
+    const pulled = await pull();
+    await db.meta.put({ key: "lastSync", value: now() });
+    return { pushed, uploaded, pulled };
+  })().finally(() => {
+    running = null;
+  });
+  return running;
+}
 // ---------- receive server changes ----------
 async function pull() {
   const cursor = (await db.meta.get("cursor"))?.value;
@@ -191,16 +239,78 @@ async function pull() {
   return changed;
 }
 
-let running = null;
-export function sync() {
-  if (!navigator.onLine) return Promise.reject(new Error("You are offline."));
-  running ??= (async () => {
-    const pushed = await push();
-    const pulled = await pull();
-    await db.meta.put({ key: "lastSync", value: now() });
-    return { pushed, pulled };
-  })().finally(() => {
-    running = null;
+// ---------- live status for the UI ----------
+const listeners = new Set();
+let state = {
+  online: navigator.onLine,
+  syncing: false,
+  error: "",
+  pending: 0,
+  lastSync: null,
+  dataVersion: 0, // goes up whenever new data arrives from the server
+};
+const setState = (patch) => {
+  state = { ...state, ...patch };
+  listeners.forEach((l) => l());
+};
+export const subscribe = (l) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
+export const getSyncState = () => state;
+
+let timer = null;
+export function scheduleSync(delay = 3000) {
+  clearTimeout(timer);
+  timer = setTimeout(syncNow, delay);
+}
+
+export async function syncNow() {
+  if (!navigator.onLine || !getToken()) return;
+  setState({ syncing: true });
+  let ok = false;
+  try {
+    const result = await sync();
+    ok = true;
+    setState({
+      error: "",
+      lastSync: new Date(),
+      dataVersion:
+        result.pulled > 0 ? state.dataVersion + 1 : state.dataVersion,
+    });
+  } catch (e) {
+    setState({ error: e.message });
+  } finally {
+    setState({ syncing: false });
+    // changes made while we were syncing still need sending
+    if (ok && (await db.outbox.count()) > 0) scheduleSync(1000);
+  }
+}
+
+let started = false;
+export function startAutoSync() {
+  if (started) return;
+  started = true;
+
+  window.addEventListener("online", () => {
+    setState({ online: true });
+    syncNow();
   });
-  return running;
+  window.addEventListener("offline", () => setState({ online: false }));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncNow();
+  });
+  setInterval(() => {
+    if (!document.hidden) syncNow();
+  }, 60000);
+
+  // every local change (an outbox entry) schedules a sync a few seconds later
+  db.outbox.hook("creating", () => {
+    scheduleSync();
+  });
+  liveQuery(() => db.outbox.count()).subscribe({
+    next: (pending) => setState({ pending }),
+  });
+
+  syncNow();
 }

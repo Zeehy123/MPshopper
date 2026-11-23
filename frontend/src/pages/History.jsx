@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useCart } from "../context/CartContext";
 import { formatMoney } from "../utils";
+import { useSync } from "../useSync";
 
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString("en-NG", {
@@ -21,13 +22,15 @@ export default function History() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
 
+  const { dataVersion } = useSync();
+
   useEffect(() => {
     api
       .getTrips("?completed=true")
       .then(setTrips)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [dataVersion]);
 
   async function handleRepeat(trip) {
     if (cart && cart.items.length > 0) {
