@@ -2,6 +2,8 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+import cloudinary.uploader
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
@@ -115,6 +117,14 @@ def remove(table, cid, owner):
     Tombstone.objects.create(table=table, client_id=cid, owner=owner)
 
 
+def product_image(product, request):
+    if product.image_url:
+        return product.image_url
+    if product.image:
+        return request.build_absolute_uri(product.image.url)
+    return None
+
+
 def wire(table, o, request):
     cid = lambda x: str(x.client_id) if x else None
     out = {'id': str(o.client_id), 'modified_at': o.modified_at.isoformat()}
@@ -127,7 +137,7 @@ def wire(table, o, request):
             name=o.name, unit=o.unit, category_id=cid(o.category),
             default_quantity=str(o.default_quantity),
             current_price=str(o.current_price),
-            image=request.build_absolute_uri(o.image.url) if o.image else None,
+            image=product_image(o, request),
         )
     elif table == 'priceHistory':
         out.update(
@@ -205,6 +215,25 @@ class ProductImageView(APIView):
             return Response({'detail': 'File must be an image.'}, status=400)
         if image.size > 5 * 1024 * 1024:
             return Response({'detail': 'Image must be under 5 MB.'}, status=400)
-        product.image = image
+        if settings.CLOUDINARY_ENABLED:
+            try:
+                result = cloudinary.uploader.upload(
+                    image,
+                    folder='grocery/products',
+                    public_id=str(product.client_id),
+                    overwrite=True,
+                    invalidate=True,
+                    resource_type='image',
+                    # shrink on the way in, so phone photos don't eat the free allowance
+                    transformation=[
+                        {'width': 800, 'height': 800, 'crop': 'limit'},
+                        {'quality': 'auto'},
+                    ],
+                )
+            except Exception as e:  # network or account problem; the app retries later
+                return Response({'detail': f'Image upload failed: {e}'}, status=502)
+            product.image_url = result['secure_url']
+        else:
+            product.image = image
         product.save()
-        return Response({'image': request.build_absolute_uri(product.image.url)})
+        return Response({'image': product_image(product, request)})

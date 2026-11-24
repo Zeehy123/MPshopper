@@ -38,7 +38,9 @@ export default defineConfig({
         ],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith("/media/"),
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith("/media/") ||
+              url.hostname === "res.cloudinary.com",
             handler: "CacheFirst",
             options: {
               cacheName: "product-images",

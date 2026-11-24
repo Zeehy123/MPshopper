@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ProduceSymbols, BasketHero } from "../components/Botanicals";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState("login");
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState(
+    searchParams.get("mode") === "register" ? "register" : "login",
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -13,8 +17,10 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!username.trim() || !password) return setError("Enter your username and password.");
-    if (mode === "register" && password !== confirm) return setError("Passwords do not match.");
+    if (!username.trim() || !password)
+      return setError("Enter your username and password.");
+    if (mode === "register" && password !== confirm)
+      return setError("Passwords do not match.");
     try {
       setBusy(true);
       setError("");
@@ -33,7 +39,10 @@ export default function Login() {
           <BasketHero />
         </div>
         <h1>My Grocery Shopper</h1>
-        <p>Keep your own price list, shop with a cart, and see what you really spend. It works without internet.</p>
+        <p>
+          Keep your own price list, shop with a cart, and see what you really
+          spend. It works without internet.
+        </p>
       </section>
 
       <form className="auth-card" onSubmit={handleSubmit}>
@@ -55,7 +64,9 @@ export default function Login() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            autoComplete={
+              mode === "login" ? "current-password" : "new-password"
+            }
           />
         </label>
         {mode === "register" && (
@@ -70,10 +81,18 @@ export default function Login() {
           </label>
         )}
 
-        {error && <p className="error" role="alert">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
 
         <button type="submit" disabled={busy}>
-          {busy ? "Please wait" : mode === "login" ? "Log in" : "Create account"}
+          {busy
+            ? "Please wait"
+            : mode === "login"
+              ? "Log in"
+              : "Create account"}
         </button>
         <button
           type="button"
@@ -84,7 +103,9 @@ export default function Login() {
             setError("");
           }}
         >
-          {mode === "login" ? "New here? Create an account" : "Have an account? Log in"}
+          {mode === "login"
+            ? "New here? Create an account"
+            : "Have an account? Log in"}
         </button>
       </form>
     </div>

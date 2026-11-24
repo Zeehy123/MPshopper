@@ -14,7 +14,7 @@ async function must(table, id, label) {
 // ---------- images: -> URLs for <img> ----------
 const urlCache = new Map();
 function imageUrl(p) {
-  if (!p?.image) return null;
+  if (!p?.image) return p?.imageUrl || null;
   const hit = urlCache.get(p.id);
   if (hit && hit.version === p.imageVersion) return hit.url;
   if (hit) URL.revokeObjectURL(hit.url);

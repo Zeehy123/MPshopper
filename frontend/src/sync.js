@@ -15,7 +15,7 @@ async function call(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(70000),
   });
   if (res.status === 401) {
     clearAuth();

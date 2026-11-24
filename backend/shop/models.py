@@ -50,6 +50,7 @@ class Store(SyncModel):
 class Product(SyncModel):
     name = models.CharField(max_length=150)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
+    image_url = models.URLField(max_length=500, blank=True, default='')  # picture hosted on Cloudinary
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='products',
