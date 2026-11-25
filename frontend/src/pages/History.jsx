@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import { api } from "../api";
 import { useCart } from "../context/CartContext";
 import { formatMoney } from "../utils";
@@ -22,6 +22,7 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [search, setSearch] = useState("");
 
   const { dataVersion } = useSync();
@@ -52,6 +53,25 @@ export default function History() {
       setError(e.message);
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function handleDelete(trip) {
+    const ok = window.confirm(
+      `Delete this shopping trip from ${formatDate(trip.date)}? This cannot be undone.`,
+    );
+    if (!ok) return;
+
+    try {
+      setDeletingId(trip.id);
+      setError("");
+      await api.deleteTrip(trip.id);
+      setTrips((current) => current.filter((item) => item.id !== trip.id));
+      setOpenId((current) => (current === trip.id ? null : current));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -131,9 +151,17 @@ export default function History() {
                   </button>
                   <button
                     onClick={() => handleRepeat(trip)}
-                    disabled={busyId === trip.id}
+                    disabled={busyId === trip.id || deletingId === trip.id}
                   >
                     {busyId === trip.id ? "Copying..." : "Repeat this trip"}
+                  </button>
+                  <button
+                    className="danger-action"
+                    onClick={() => handleDelete(trip)}
+                    disabled={busyId === trip.id || deletingId === trip.id}
+                  >
+                    <Trash2 size={17} aria-hidden="true" />
+                    {deletingId === trip.id ? "Deleting..." : "Delete trip"}
                   </button>
                 </div>
 

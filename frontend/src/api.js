@@ -402,6 +402,16 @@ const localApi = {
     return Promise.all(trips.map(tripOut));
   },
 
+  deleteTrip: async (id) => {
+    const trip = await must("trips", id, "Trip");
+    if (!trip.isCompleted) fail("An active shopping cart cannot be deleted here.");
+    const items = await db.tripItems.where("tripId").equals(id).toArray();
+    await tx(async () => {
+      for (const item of items) await remove("tripItems", item);
+      await remove("trips", trip);
+    });
+  },
+
   repeatTrip: async (id) => {
     const old = await must("trips", id, "Trip");
     const openTrips = (await db.trips.toArray()).filter((t) => !t.isCompleted);

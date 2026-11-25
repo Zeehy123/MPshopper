@@ -144,3 +144,24 @@ class BoughtItemSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertTrue(Product.objects.filter(pk=self.item.product_id).exists())
+
+    def test_sync_deletes_trip_items_before_trip_and_keeps_products(self):
+        trip = self.item.trip
+        product = self.item.product
+
+        response = self.client.post(
+            '/api/sync/push/',
+            {
+                'upserts': {},
+                'deletes': [
+                    {'table': 'tripItems', 'id': str(self.item.client_id)},
+                    {'table': 'trips', 'id': str(trip.client_id)},
+                ],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Trip.objects.filter(pk=trip.pk).exists())
+        self.assertFalse(TripItem.objects.filter(pk=self.item.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())
