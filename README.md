@@ -1,18 +1,18 @@
 My Grocery Shopper
 A personal grocery shopping app that works offline. Keep your own price list with pictures, build a cart for each shop visit, edit prices as they change, and see where your money goes. It installs on a phone like a native app and syncs to the cloud whenever a connection is available.
-Live demo: https://YOUR-APP.onrender.com (replace with your deployed site address)
+Live demo: (https://mpshopper-1.onrender.com/) 
 <img width="1339" height="603" alt="image" src="https://github.com/user-attachments/assets/933a18f8-cd5a-44f2-af66-711f5c53532d" />
-
+Carts Page
 <img width="1335" height="610" alt="image" src="https://github.com/user-attachments/assets/273f1d30-236f-4435-aada-8baaa2f2904c" />
 
 Features
-Your own shelf. Add products with a picture, category, unit (kg, bag, tin...), default quantity and price.
-Price tracking. Edit a price whenever it changes. Every change is recorded, and each product shows a rise or fall badge.
-Shopping cart. Tap products on the dashboard to add them. Adjust quantity and the price you actually see in the shop.
-Budget meter. Set a budget per trip and watch the remaining amount. It warns you at 90% and when you go over.
-Trip history. Finished trips keep the prices you paid. Repeat a past trip with one tap.
-Stats. Monthly spending, spending by category, most-bought items, and a "where is it cheapest?" store comparison per product.
-Works offline. Everything is stored on the device first. Changes sync automatically when you are back online.
+Your own shelf: Add products with a picture, category, unit (kg, bag, tin...), default quantity and price.
+Price tracking: Edit a price whenever it changes. Every change is recorded, and each product shows a rise or fall badge.
+Shopping cart: Tap products on the dashboard to add them. Adjust quantity and the price you actually see in the shop.
+Budget meter: Set a budget per trip and watch the remaining amount. It warns you at 90% and when you go over.
+Trip history: Finished trips keep the prices you paid. Repeat a past trip with one tap.
+Stats: Monthly spending, spending by category, most-bought items, and a "where is it cheapest?" store comparison per product.
+Works offline: Everything is stored on the device first. Changes sync automatically when you are back online.
 Installable (PWA) with a mobile-first layout and a bottom tab bar on phones.
 Accounts. Each person only ever sees their own data.
 How it works
@@ -28,7 +28,7 @@ flowchart LR
   DJ --> PG[("PostgreSQL")]
   DJ --> CL["Cloudinary pictures"]
 ```
-The app is offline-first. The screens read and write a database inside the browser, so they never wait for the network. A background sync sends local changes to the server and receives changes made elsewhere. See docs/ARCHITECTURE.md for the details.
+The app is offline-first. The screens read and write a database inside the browser, so they never wait for the network. A background sync sends local changes to the server and receives changes made elsewhere. 
 Tech stack
 Layer	Technology
 Frontend	React 19, Vite 8, React Router 7, lucide-react icons
@@ -79,8 +79,7 @@ MPshopper/
 │       └── auth.js          login and token storage
 └── docs/                    architecture, API, development, deployment
 ```
-Documentation
-Document	What is in it
+DOCUMENTS
 Architecture	Offline-first design, data model, sync algorithm, security
 API reference	Every endpoint with request and response examples
 Development guide	Local setup, environment variables, common problems
@@ -92,5 +91,6 @@ Products can be created and re-priced, but there is no screen yet to rename or d
 There is no password reset yet.
 Roadmap
 Meal planner that builds a list from recipes, pantry tracking, shared family lists, barcode scanning, client-side image compression, automated tests.
+
 Author
 Built by Zainab Yusuf (@Zeehy123).
