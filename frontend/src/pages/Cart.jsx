@@ -88,6 +88,7 @@ export default function Cart() {
     cart.budget && Number(cart.budget) > 0
       ? Math.min(100, (Number(cart.total) / Number(cart.budget)) * 100)
       : 0;
+  const boughtCount = cart.items.filter((item) => item.is_bought).length;
 
   return (
     <>
@@ -106,11 +107,19 @@ export default function Cart() {
               </Link>
             </div>
           ) : (
-            <div className="cart-list">
-              {cart.items.map((item) => (
-                <CartItemRow key={item.id} item={item} />
-              ))}
-            </div>
+            <>
+              <p className="cart-progress">
+                {boughtCount} bought · {cart.items.length - boughtCount} left
+              </p>
+              <div className="cart-list">
+                {cart.items.map((item) => (
+                  <CartItemRow
+                    key={`${item.id}:${item.quantity}:${item.price_paid}`}
+                    item={item}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
 

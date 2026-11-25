@@ -84,6 +84,7 @@ def fields(table, w, owner):
             'trip': ref(Trip, w['trip_id'], owner),
             'product': ref(Product, w['product_id'], owner),
             'quantity': dec(w['quantity']), 'price_paid': dec(w['price_paid']),
+            'is_bought': bool(w.get('is_bought', False)),
             'created_at': dt(w['created_at']),
         }
     raise SyncError(f'Unknown table {table}')
@@ -112,8 +113,10 @@ def remove(table, cid, owner):
     if obj:
         try:
             obj.delete()
-        except ProtectedError:
-            return
+        except ProtectedError as e:
+            raise SyncError(
+                f'{model.__name__} is still referenced by shopping history'
+            ) from e
     Tombstone.objects.create(table=table, client_id=cid, owner=owner)
 
 
@@ -154,6 +157,7 @@ def wire(table, o, request):
         out.update(
             trip_id=cid(o.trip), product_id=cid(o.product),
             quantity=str(o.quantity), price_paid=str(o.price_paid),
+            is_bought=o.is_bought,
             created_at=o.created_at.isoformat(),
         )
     return out

@@ -7,6 +7,7 @@ import {
   clearAuth,
   loginRequest,
   registerRequest,
+  updateProfileRequest,
 } from "../auth";
 
 const AuthContext = createContext(null);
@@ -54,6 +55,16 @@ export function AuthProvider({ children }) {
   const login = (u, p) => authenticate(loginRequest, u, p);
   const register = (u, p) => authenticate(registerRequest, u, p);
 
+  async function updateProfile(data) {
+    const updated = await updateProfileRequest(data);
+    const auth = getAuth();
+    if (auth) setAuth({ ...auth, username: updated.username });
+    setUser((current) =>
+      current ? { ...current, username: updated.username } : current,
+    );
+    return updated;
+  }
+
   async function logout() {
     if (navigator.onLine) {
       try {
@@ -77,7 +88,9 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, login, register, updateProfile, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

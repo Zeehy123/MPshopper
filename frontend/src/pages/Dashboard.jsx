@@ -40,9 +40,14 @@ export default function Dashboard() {
     return () => clearTimeout(timer);
   }, [search, category, dataVersion]);
 
-  async function handlePriceChange(id, price) {
-    const updated = await api.updateProduct(id, { current_price: price });
+  async function handleProductUpdate(id, data) {
+    const updated = await api.updateProduct(id, data);
     setProducts((list) => list.map((p) => (p.id === id ? updated : p)));
+  }
+
+  async function handleProductDelete(id) {
+    await api.deleteProduct(id);
+    setProducts((list) => list.filter((product) => product.id !== id));
   }
 
   const filtering = search || category;
@@ -97,7 +102,13 @@ export default function Dashboard() {
 
       <div className="grid">
         {products.map((p) => (
-          <ProductCard key={p.id} product={p} onPriceChange={handlePriceChange} />
+          <ProductCard
+            key={p.id}
+            product={p}
+            categories={categories}
+            onUpdate={handleProductUpdate}
+            onDelete={handleProductDelete}
+          />
         ))}
       </div>
     </>

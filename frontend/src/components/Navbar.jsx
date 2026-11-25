@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Store, CirclePlus, ShoppingBasket, History, ChartColumn, LogOut, Leaf } from "lucide-react";
+import { Store, CirclePlus, ShoppingBasket, History, ChartColumn, LogOut, Leaf, UserRound } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import SyncStatus from "./SyncStatus";
@@ -47,6 +47,14 @@ export default function Navbar() {
 
         <div className="topbar-right">
           <SyncStatus />
+          <NavLink
+            to="/profile"
+            className="icon-btn on-dark profile-link"
+            aria-label="Profile"
+            title="Profile"
+          >
+            <UserRound size={18} aria-hidden="true" />
+          </NavLink>
           <span className="who">{user?.username}</span>
           <button className="icon-btn on-dark" onClick={logout} aria-label="Log out" title="Log out">
             <LogOut size={18} aria-hidden="true" />

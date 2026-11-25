@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Search } from "lucide-react";
 import { api } from "../api";
 import { useCart } from "../context/CartContext";
 import { formatMoney } from "../utils";
@@ -21,6 +22,7 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [search, setSearch] = useState("");
 
   const { dataVersion } = useSync();
 
@@ -55,9 +57,32 @@ export default function History() {
 
   if (loading) return <p className="muted">Loading...</p>;
 
+  const query = search.trim().toLocaleLowerCase();
+  const filteredTrips = query
+    ? trips.filter((trip) =>
+        [trip.store_name, ...trip.items.map((item) => item.product_name)]
+          .filter(Boolean)
+          .some((value) => value.toLocaleLowerCase().includes(query)),
+      )
+    : trips;
+
   return (
     <>
-      <h1>Shopping History</h1>
+      <div className="page-header">
+        <h1>Shopping History</h1>
+        {trips.length > 0 && (
+          <label className="search">
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Search trips or products"
+              aria-label="Search shopping history"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+        )}
+      </div>
       {error && <p className="error">{error}</p>}
 
       {trips.length === 0 ? (
@@ -65,9 +90,13 @@ export default function History() {
           <p>No finished trips yet.</p>
           <Link to="/">Start shopping</Link>
         </div>
+      ) : filteredTrips.length === 0 ? (
+        <div className="card empty">
+          <p>No trips or products match “{search}”.</p>
+        </div>
       ) : (
         <div className="trip-list">
-          {trips.map((trip) => {
+          {filteredTrips.map((trip) => {
             const open = openId === trip.id;
             return (
               <div key={trip.id} className="card trip">

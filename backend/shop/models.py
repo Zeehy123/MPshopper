@@ -108,6 +108,7 @@ class TripItem(SyncModel):
     quantity = models.DecimalField(
         max_digits=8, decimal_places=2, default=Decimal('1'))
     price_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    is_bought = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     @property
     def line_total(self):
