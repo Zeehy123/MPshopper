@@ -2,12 +2,12 @@
 
 A personal grocery shopping app that works **offline**. Keep your own price list with pictures, build a cart for each shop visit, edit prices as they change, and see where your money goes. It installs on a phone like a native app and syncs to the cloud whenever a connection is available.
 
-**Live demo:** https://YOUR-APP.onrender.com *(replace with your deployed site address)*
+**Live demo:** (https://mpshopper-1.onrender.com) 
 
-<!-- Add screenshots here, for example:
-![Dashboard](docs/screenshots/dashboard.png)
-![Cart](docs/screenshots/cart.png)
--->
+
+<img width="1339" height="603" alt="Screenshot 2026-11-25 143331" src="https://github.com/user-attachments/assets/4907a237-2d91-488e-ae2b-a11d0b9df522" />
+<img width="1335" height="610" alt="Screenshot 2026-11-25 143418" src="https://github.com/user-attachments/assets/9411a561-48d2-4e21-afe3-0671af9922df" />
+
 
 ## Features
 
