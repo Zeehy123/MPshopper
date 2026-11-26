@@ -73,7 +73,7 @@ class ProfileTests(TestCase):
         self.assertEqual(self.user.username, 'grocery-user')
 
 
-class BoughtItemSyncTests(TestCase):
+class CheckedItemSyncTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
             username='cart-owner', password='test-password',
@@ -86,13 +86,14 @@ class BoughtItemSyncTests(TestCase):
         trip = Trip.objects.create(owner=self.user)
         self.item = TripItem.objects.create(
             owner=self.user, trip=trip, product=product,
+            product_name=product.name, product_unit=product.unit,
             quantity='2', price_paid='1.25',
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_sync_pull_includes_bought_state(self):
-        self.item.is_bought = True
+    def test_sync_pull_includes_checked_state_and_product_snapshot(self):
+        self.item.is_checked = True
         self.item.save()
 
         response = self.client.get('/api/sync/pull/')
@@ -100,9 +101,38 @@ class BoughtItemSyncTests(TestCase):
         self.assertEqual(response.status_code, 200)
         item = response.data['changes']['tripItems'][0]
         self.assertEqual(item['id'], str(self.item.client_id))
-        self.assertTrue(item['is_bought'])
+        self.assertTrue(item['is_checked'])
+        self.assertEqual(item['product_name'], 'Apple')
+        self.assertEqual(item['product_unit'], 'piece')
 
-    def test_sync_push_updates_bought_state(self):
+    def test_sync_push_updates_checked_state(self):
+        response = self.client.post(
+            '/api/sync/push/',
+            {
+                'upserts': {
+                    'tripItems': [{
+                        'id': str(self.item.client_id),
+                        'trip_id': str(self.item.trip.client_id),
+                        'product_id': str(self.item.product.client_id),
+                        'quantity': '2',
+                        'price_paid': '1.25',
+                        'is_checked': True,
+                        'created_at': self.item.created_at.isoformat(),
+                        'updated_at': (
+                            timezone.now() + timedelta(minutes=1)
+                        ).isoformat(),
+                    }],
+                },
+                'deletes': [],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.is_checked)
+
+    def test_sync_push_accepts_legacy_bought_state(self):
         response = self.client.post(
             '/api/sync/push/',
             {
@@ -127,9 +157,11 @@ class BoughtItemSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.item.refresh_from_db()
-        self.assertTrue(self.item.is_bought)
+        self.assertTrue(self.item.is_checked)
+        self.assertEqual(self.item.product_name, 'Apple')
+        self.assertEqual(self.item.product_unit, 'piece')
 
-    def test_sync_rejects_deleting_product_used_in_trip(self):
+    def test_sync_deleting_product_keeps_trip_item_snapshot(self):
         response = self.client.post(
             '/api/sync/push/',
             {
@@ -142,8 +174,12 @@ class BoughtItemSyncTests(TestCase):
             format='json',
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertTrue(Product.objects.filter(pk=self.item.product_id).exists())
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Product.objects.filter(pk=self.item.product_id).exists())
+        self.item.refresh_from_db()
+        self.assertIsNone(self.item.product)
+        self.assertEqual(self.item.product_name, 'Apple')
+        self.assertEqual(self.item.product_unit, 'piece')
 
     def test_sync_deletes_trip_items_before_trip_and_keeps_products(self):
         trip = self.item.trip

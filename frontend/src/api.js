@@ -351,6 +351,8 @@ const localApi = {
       id: newId(),
       tripId: trip,
       productId: product,
+      productName: p.name,
+      productUnit: p.unit,
       quantity: qty,
       pricePaid: p.currentPrice,
       checked: false,

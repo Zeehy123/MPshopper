@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import timedelta
 from decimal import Decimal
@@ -14,6 +15,8 @@ from rest_framework.views import APIView
 from .models import (
     Category, Store, Product, PriceHistory, Trip, TripItem, Tombstone,
 )
+
+logger = logging.getLogger(__name__)
 
 # parents come before children, so references always resolve
 MODELS = {
@@ -88,13 +91,18 @@ def fields(table, w, owner):
             'budget': dec(w.get('budget')), 'is_completed': bool(w['is_completed']),
         }
     if table == 'tripItems':
+        product = ref_soft(Product, w.get('product_id'), owner)
         return {
             'trip': ref(Trip, w['trip_id'], owner),
-            'product': ref_soft(Product, w.get('product_id'), owner),
-            'product_name': (w.get('product_name') or '')[:150],
-            'product_unit': (w.get('product_unit') or '')[:30],
+            'product': product,
+            'product_name': (
+                w.get('product_name') or (product.name if product else '')
+            )[:150],
+            'product_unit': (
+                w.get('product_unit') or (product.unit if product else '')
+            )[:30],
             'quantity': dec(w['quantity']), 'price_paid': dec(w['price_paid']),
-            'is_checked': bool(w.get('is_checked', False)),
+            'is_checked': bool(w.get('is_checked', w.get('is_bought', False))),
             'created_at': dt(w['created_at']),
         }
     raise SyncError(f'Unknown table {table}')
@@ -193,6 +201,7 @@ class SyncPushView(APIView):
                 for d in deletes:
                     remove(d['table'], d['id'], owner)
         except (SyncError, IntegrityError, KeyError, ValueError, TypeError) as e:
+            logger.warning('Sync push rejected for user %s: %s', owner.pk, e)
             return Response({'detail': f'Sync rejected: {e}'}, status=400)
         return Response({'ok': True})
 
