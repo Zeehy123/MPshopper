@@ -12,12 +12,14 @@ const TABS = [
   { to: "/stats", label: "Stats", Icon: ChartColumn },
 ];
 
+const MOBILE_TABS = [...TABS, { to: "/profile", label: "Profile", Icon: UserRound }];
+
 export default function Navbar() {
   const { itemCount } = useCart();
   const { user, logout } = useAuth();
 
-  const links = (className) =>
-    TABS.map(({ to, label, Icon, end, cart }) => (
+  const links = (className, tabs = TABS) =>
+    tabs.map(({ to, label, Icon, end, cart }) => (
       <NavLink key={to} to={to} end={end} className={className}>
         <span className="nav-icon">
           <Icon size={20} aria-hidden="true" />
@@ -58,7 +60,7 @@ export default function Navbar() {
       </header>
 
       <nav className="tabbar" aria-label="Main">
-        {links("tab")}
+        {links("tab", MOBILE_TABS)}
       </nav>
     </>
   );

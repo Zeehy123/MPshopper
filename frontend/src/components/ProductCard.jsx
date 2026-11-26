@@ -80,6 +80,7 @@ export default function ProductCard({ product, onPriceChange, onDelete }) {
             title="Edit product"
           >
             <SquarePen size={18} aria-hidden="true" />
+            <span className="product-action-label">Edit</span>
           </Link>
           <button
             type="button"
@@ -90,6 +91,7 @@ export default function ProductCard({ product, onPriceChange, onDelete }) {
             title="Delete product"
           >
             <Trash2 size={18} aria-hidden="true" />
+            <span className="product-action-label">Delete</span>
           </button>
         </div>
       </div>
