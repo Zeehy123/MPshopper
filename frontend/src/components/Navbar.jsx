@@ -47,15 +47,10 @@ export default function Navbar() {
 
         <div className="topbar-right">
           <SyncStatus />
-          <NavLink
-            to="/profile"
-            className="icon-btn on-dark profile-link"
-            aria-label="Profile"
-            title="Profile"
-          >
+          <NavLink to="/profile" className="profile-link" aria-label="Your profile" title="Your profile">
             <UserRound size={18} aria-hidden="true" />
+            <span className="who">{user?.username}</span>
           </NavLink>
-          <span className="who">{user?.username}</span>
           <button className="icon-btn on-dark" onClick={logout} aria-label="Log out" title="Log out">
             <LogOut size={18} aria-hidden="true" />
           </button>

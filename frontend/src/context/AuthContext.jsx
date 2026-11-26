@@ -8,6 +8,7 @@ import {
   loginRequest,
   registerRequest,
   updateProfileRequest,
+  changePasswordRequest,
 } from "../auth";
 
 const AuthContext = createContext(null);
@@ -55,14 +56,20 @@ export function AuthProvider({ children }) {
   const login = (u, p) => authenticate(loginRequest, u, p);
   const register = (u, p) => authenticate(registerRequest, u, p);
 
-  async function updateProfile(data) {
-    const updated = await updateProfileRequest(data);
-    const auth = getAuth();
-    if (auth) setAuth({ ...auth, username: updated.username });
-    setUser((current) =>
-      current ? { ...current, username: updated.username } : current,
-    );
-    return updated;
+  async function updateUsername(username) {
+    const data = await updateProfileRequest(username);
+    setAuth({ ...getAuth(), username: data.username });
+    setUser((u) => ({ ...u, username: data.username }));
+  }
+
+  async function changePassword(currentPassword, newPassword) {
+    const data = await changePasswordRequest(currentPassword, newPassword);
+    // the server signs out every old token, so keep the new one
+    setAuth({
+      token: data.token,
+      userId: data.user_id,
+      username: data.username,
+    });
   }
 
   async function logout() {
@@ -88,9 +95,14 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider
-      value={{ user, login, register, updateProfile, logout }}
-    >
+    <AuthContext.Provider value={{
+        user,
+        login,
+        register,
+        logout,
+        updateUsername,
+        changePassword,
+      }}>
       {children}
     </AuthContext.Provider>
   );

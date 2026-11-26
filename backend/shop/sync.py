@@ -49,6 +49,14 @@ def ref(model, cid, owner):
     return obj
 
 
+def ref_soft(model, cid, owner):
+    # like ref(), but a missing record gives None instead of an error
+    # (a product deleted before it ever reached the server)
+    if not cid:
+        return None
+    return model.objects.filter(client_id=cid, owner=owner).first()
+
+
 def dt(value):
     parsed = parse_datetime(value or '')
     if parsed is None:
@@ -82,9 +90,11 @@ def fields(table, w, owner):
     if table == 'tripItems':
         return {
             'trip': ref(Trip, w['trip_id'], owner),
-            'product': ref(Product, w['product_id'], owner),
+            'product': ref_soft(Product, w.get('product_id'), owner),
+            'product_name': (w.get('product_name') or '')[:150],
+            'product_unit': (w.get('product_unit') or '')[:30],
             'quantity': dec(w['quantity']), 'price_paid': dec(w['price_paid']),
-            'is_bought': bool(w.get('is_bought', False)),
+            'is_checked': bool(w.get('is_checked', False)),
             'created_at': dt(w['created_at']),
         }
     raise SyncError(f'Unknown table {table}')
@@ -111,12 +121,18 @@ def remove(table, cid, owner):
     cid = uuid.UUID(cid)
     obj = model.objects.filter(client_id=cid, owner=owner).first()
     if obj:
+        image_id = None
+        if table == 'products' and obj.image_url and settings.CLOUDINARY_ENABLED:
+            image_id = f'grocery/products/{obj.client_id}'
         try:
             obj.delete()
-        except ProtectedError as e:
-            raise SyncError(
-                f'{model.__name__} is still referenced by shopping history'
-            ) from e
+        except ProtectedError:
+            return
+        if image_id:
+            try:  # free the picture; if this fails it is only an orphaned file
+                cloudinary.uploader.destroy(image_id, invalidate=True)
+            except Exception:
+                pass
     Tombstone.objects.create(table=table, client_id=cid, owner=owner)
 
 
@@ -156,8 +172,9 @@ def wire(table, o, request):
     elif table == 'tripItems':
         out.update(
             trip_id=cid(o.trip), product_id=cid(o.product),
+            product_name=o.product_name, product_unit=o.product_unit,
             quantity=str(o.quantity), price_paid=str(o.price_paid),
-            is_bought=o.is_bought,
+            is_checked=o.is_checked,
             created_at=o.created_at.isoformat(),
         )
     return out

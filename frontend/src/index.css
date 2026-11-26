@@ -23,12 +23,6 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
-.cart-row { transition: opacity 160ms ease, background 160ms ease; }
-.cart-row.bought { opacity: 0.58; background: #f0f4eb; }
-.cart-row.bought .cart-info h3 { text-decoration: line-through; text-decoration-thickness: 1px; }
-.cart-bought { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.45rem; color: var(--muted); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
-.cart-bought input { width: 18px; min-height: 18px; height: 18px; margin: 0; accent-color: var(--fern); cursor: pointer; }
-.cart-progress { margin: 0 0 0.65rem; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -56,6 +50,8 @@ a { color: var(--leaf); }
 
 .muted { color: var(--muted); font-size: 0.85rem; }
 .error { color: var(--tomato); font-size: 0.88rem; font-weight: 500; }
+.notice { color: var(--fern); font-size: 0.88rem; font-weight: 600; }
+.trip-hits { margin-top: 0.2rem; }
 
 /* ---------- backdrop (pale fruit and leaves) ---------- */
 .backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
@@ -96,6 +92,14 @@ a { color: var(--leaf); }
 
 .topbar-right { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; }
 .who { color: #dcefe2; font-size: 0.9rem; }
+.profile-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  min-height: 40px; padding: 0 0.7rem; border-radius: 999px;
+  color: #dcefe2; text-decoration: none;
+}
+.profile-link:hover { background: rgba(255, 255, 255, 0.14); }
+.profile-link.active { background: #fff; color: var(--leaf); }
+.profile-link.active .who { color: var(--leaf); }
 
 /* ---------- mobile tab bar ---------- */
 .tabbar { display: none; }
@@ -197,6 +201,16 @@ input[type="file"]::file-selector-button {
   padding: 0.15rem 0.65rem; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background: rgba(255, 255, 255, 0.94); color: var(--leaf); font-size: 0.75rem; font-weight: 700;
 }
+.product-actions { position: absolute; top: 0.55rem; right: 0.55rem; display: flex; gap: 0.4rem; }
+.product-action {
+  display: grid; place-items: center; width: 40px; height: 40px; min-height: 40px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer; text-decoration: none;
+  background: rgba(255, 255, 255, 0.95); color: var(--leaf);
+  box-shadow: 0 1px 4px rgba(19, 38, 27, 0.25);
+}
+.product-action:hover:not(:disabled) { background: #fff; color: var(--leaf-2); }
+.product-action.danger { color: var(--tomato); }
+.product-action.danger:hover:not(:disabled) { background: #fdebe7; color: var(--tomato); }
 .product-body { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; padding: 0.85rem 0.9rem 0.95rem; }
 .product-body h3 { overflow-wrap: anywhere; }
 
@@ -211,15 +225,7 @@ input[type="file"]::file-selector-button {
 .trend { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.82rem; font-weight: 700; }
 .trend.up { color: var(--tomato); }
 .trend.down { color: var(--fern); }
-.product-actions { display: flex; gap: 0.35rem; margin-left: auto; }
-.price-row .icon-btn { width: 40px; min-height: 40px; }
-
-.product-edit-form { display: flex; flex-direction: column; gap: 0.65rem; margin: 0.45rem 0 0.7rem; }
-.product-edit-form label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--muted); font-size: 0.76rem; font-weight: 600; }
-.product-edit-form input, .product-edit-form select { width: 100%; min-width: 0; min-height: 40px; padding: 0 0.6rem; }
-.product-edit-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
-.product-edit-actions { display: flex; gap: 0.45rem; }
-.product-edit-actions button { min-height: 40px; padding: 0 0.75rem; font-size: 0.85rem; }
+.price-row .icon-btn { margin-left: auto; width: 40px; min-height: 40px; }
 
 .price-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin: 0.35rem 0 0.4rem; }
 .price-edit input { grid-column: 1 / -1; width: 100%; }
@@ -239,9 +245,23 @@ input[type="file"]::file-selector-button {
 .cart-list { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .cart-row {
-  display: grid; grid-template-columns: 64px 1fr auto 44px; align-items: center; gap: 0.9rem;
+  display: grid; grid-template-columns: 44px 64px 1fr auto 44px; align-items: center; gap: 0.7rem;
   padding: 0.8rem; background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  transition: background 0.2s, border-color 0.2s;
 }
+.cart-check { display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
+.cart-check input {
+  width: 24px; height: 24px; min-height: 0; margin: 0; padding: 0;
+  accent-color: var(--fern); cursor: pointer;
+}
+/* ticked as bought: the row fades so what is left stands out */
+.cart-img, .cart-info, .cart-fields { transition: opacity 0.2s; }
+.cart-row.bought { background: var(--mint-2); border-color: transparent; }
+.cart-row.bought .cart-img,
+.cart-row.bought .cart-info,
+.cart-row.bought .cart-fields { opacity: 0.42; }
+.cart-row.bought .cart-info h3 { text-decoration: line-through; }
+.bought-progress { margin: -0.4rem 0 0; font-weight: 600; }
 .cart-img { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; background: var(--mint); }
 .cart-img.placeholder { display: grid; place-items: center; color: var(--fern); }
 .cart-info { min-width: 0; }
@@ -277,10 +297,6 @@ input[type="file"]::file-selector-button {
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .preview { width: 160px; height: 160px; object-fit: cover; border-radius: 14px; border: 1px solid var(--line); }
 .form-actions { display: flex; gap: 0.75rem; }
-.profile-intro { margin-top: 0.5rem; }
-.profile-form { max-width: 500px; }
-.profile-success { color: var(--fern); font-size: 0.9rem; font-weight: 600; }
-.topbar-right .profile-link { display: grid; place-items: center; text-decoration: none; }
 
 /* ---------- history ---------- */
 .trip-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
@@ -289,8 +305,6 @@ input[type="file"]::file-selector-button {
 .trip-money { display: flex; flex-direction: column; align-items: flex-end; }
 .trip-money strong { font-family: var(--font-display); font-size: 1.3rem; }
 .trip-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; flex-wrap: wrap; }
-.trip-actions .danger-action { background: #fdebe7; color: var(--tomato); }
-.trip-actions .danger-action:hover:not(:disabled) { background: #fadcd5; }
 .trip-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
 .trip-table th { text-align: left; color: var(--muted); font-weight: 600; }
 .trip-table th, .trip-table td { padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--line); }
@@ -377,14 +391,13 @@ summary { cursor: pointer; color: var(--leaf); font-weight: 600; min-height: 32p
   .product-body h3 { font-size: 0.98rem; }
   .tag { font-size: 1rem; padding-right: 0.65rem; }
   .price-row { flex-wrap: wrap; gap: 0.35rem 0.5rem; }
-  .price-row .icon-btn { margin-left: 0; }
-  .product-edit-pair { grid-template-columns: 1fr; }
-  .product-edit-actions button { flex: 1; }
+  .price-row .icon-btn { margin-left: auto; }
 
   .cart-layout { grid-template-columns: 1fr; }
   .summary { position: static; }
-  .cart-row { grid-template-columns: 56px 1fr 44px; grid-template-areas: "img info del" "fields fields fields"; gap: 0.7rem; }
-  .cart-img { grid-area: img; width: 56px; height: 56px; }
+  .cart-row { grid-template-columns: 44px 52px 1fr 44px; grid-template-areas: "check img info del" "fields fields fields fields"; gap: 0.5rem 0.6rem; }
+  .cart-check { grid-area: check; }
+  .cart-img { grid-area: img; width: 52px; height: 52px; }
   .cart-info { grid-area: info; }
   .cart-del { grid-area: del; }
   .cart-fields { grid-area: fields; grid-template-columns: 1fr 1fr auto; gap: 0.6rem; }
@@ -410,7 +423,6 @@ summary { cursor: pointer; color: var(--leaf); font-weight: 600; min-height: 32p
 @media (prefers-reduced-motion: reduce) {
   .spin { animation: none; }
   .bar-fill { transition: none; }
-  .cart-row { transition: none; }
 }
 
 /* ---------- public landing page ---------- */

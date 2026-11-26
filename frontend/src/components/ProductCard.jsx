@@ -1,31 +1,17 @@
 import { useState } from "react";
-import {
-  Apple,
-  Check,
-  Pencil,
-  Plus,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { Link } from "react-router-dom";
+import { Apple, Check, Pencil, Plus, SquarePen, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { formatMoney } from "../utils";
 
-export default function ProductCard({
-  product,
-  categories,
-  onUpdate,
-  onDelete,
-}) {
-  const { cart, inCart, addToCart } = useCart();
+export default function ProductCard({ product, onPriceChange, onDelete }) {
+  const { cart, inCart, addToCart, refreshCart } = useCart();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(null);
+  const [newPrice, setNewPrice] = useState(product.current_price);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const added = inCart(product.id);
-  const updateDraft = (field) => (event) =>
-    setDraft((current) => ({ ...current, [field]: event.target.value }));
 
   async function handleAdd() {
     try {
@@ -38,61 +24,36 @@ export default function ProductCard({
     }
   }
 
-  function startEditing() {
-    setDraft({
-      name: product.name,
-      unit: product.unit,
-      category: product.category ?? "",
-      default_quantity: product.default_quantity,
-      current_price: product.current_price,
-    });
-    setEditing(true);
-    setError("");
-  }
-
-  async function handleSave() {
-    if (!draft.name.trim() || !draft.unit.trim()) {
-      setError("Name and unit are required.");
-      return;
-    }
-    if (
-      !(Number(draft.current_price) > 0) ||
-      !(Number(draft.default_quantity) > 0)
-    ) {
-      setError("Price and default quantity must be above zero.");
-      return;
-    }
-    try {
-      setBusy(true);
-      await onUpdate(product.id, draft);
-      setEditing(false);
-      setDraft(null);
-      setError("");
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleDelete() {
-    if (!window.confirm(`Delete "${product.name}"? This cannot be undone.`))
-      return;
+    const ok = window.confirm(
+      `Delete "${product.name}"?\n\nIt will be removed from your shelf, its price history and your current cart. Past trips keep their record of it.`,
+    );
+    if (!ok) return;
     try {
       setBusy(true);
-      setError("");
       await onDelete(product.id);
+      await refreshCart(); // it may have been in the cart
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  async function handleSavePrice() {
+    if (!newPrice || Number(newPrice) <= 0) {
+      setError("Enter a price above zero.");
+      return;
+    }
+    try {
+      setBusy(true);
+      await onPriceChange(product.id, newPrice);
+      setEditing(false);
+      setError("");
     } catch (e) {
       setError(e.message);
     } finally {
       setBusy(false);
     }
-  }
-
-  function cancelEditing() {
-    setEditing(false);
-    setDraft(null);
-    setError("");
   }
 
   const diff =
@@ -111,6 +72,26 @@ export default function ProductCard({
           </div>
         )}
         {product.category_name && <span className="product-cat">{product.category_name}</span>}
+        <div className="product-actions">
+          <Link
+            to={`/edit/${product.id}`}
+            className="product-action"
+            aria-label={`Edit ${product.name}`}
+            title="Edit product"
+          >
+            <SquarePen size={18} aria-hidden="true" />
+          </Link>
+          <button
+            type="button"
+            className="product-action danger"
+            onClick={handleDelete}
+            disabled={busy}
+            aria-label={`Delete ${product.name}`}
+            title="Delete product"
+          >
+            <Trash2 size={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div className="product-body">
@@ -118,71 +99,32 @@ export default function ProductCard({
         <p className="muted">per {product.unit}</p>
 
         {editing ? (
-          <form
-            className="product-edit-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleSave();
-            }}
-          >
-            <label>
-              Name
-              <input value={draft.name} onChange={updateDraft("name")} />
-            </label>
-            <div className="product-edit-pair">
-              <label>
-                Unit
-                <input value={draft.unit} onChange={updateDraft("unit")} />
-              </label>
-              <label>
-                Default qty
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={draft.default_quantity}
-                  onChange={updateDraft("default_quantity")}
-                />
-              </label>
-            </div>
-            <div className="product-edit-pair">
-              <label>
-                Price
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={draft.current_price}
-                  onChange={updateDraft("current_price")}
-                />
-              </label>
-              <label>
-                Category
-                <select
-                  value={draft.category}
-                  onChange={updateDraft("category")}
-                >
-                  <option value="">Uncategorised</option>
-                  {categories.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="product-edit-actions">
-              <button type="submit" disabled={busy}>Save changes</button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={cancelEditing}
-                disabled={busy}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+          <div className="price-edit">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={newPrice}
+              onChange={(e) => setNewPrice(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSavePrice()}
+              aria-label={`New price for ${product.name}`}
+              autoFocus
+            />
+            <button onClick={handleSavePrice} disabled={busy}>
+              Save
+            </button>
+            <button
+              className="secondary"
+              onClick={() => {
+                setEditing(false);
+                setNewPrice(product.current_price);
+                setError("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         ) : (
           <div className="price-row">
             <span className="tag">{formatMoney(product.current_price)}</span>
@@ -196,26 +138,14 @@ export default function ProductCard({
                 {formatMoney(Math.abs(diff))}
               </span>
             )}
-            <div className="product-actions">
-              <button
-                className="icon-btn"
-                onClick={startEditing}
-                aria-label={`Edit ${product.name}`}
-                title="Edit product"
-                disabled={busy}
-              >
-                <Pencil size={16} aria-hidden="true" />
-              </button>
-              <button
-                className="icon-btn danger"
-                onClick={handleDelete}
-                aria-label={`Delete ${product.name}`}
-                title="Delete product"
-                disabled={busy}
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </button>
-            </div>
+            <button
+              className="icon-btn"
+              onClick={() => setEditing(true)}
+              aria-label={`Edit price of ${product.name}`}
+              title="Edit price"
+            >
+              <Pencil size={16} aria-hidden="true" />
+            </button>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Trash2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { api } from "../api";
 import { useCart } from "../context/CartContext";
 import { formatMoney } from "../utils";
@@ -14,6 +14,25 @@ const formatDate = (iso) =>
     year: "numeric",
   });
 
+const longDate = (iso) =>
+  new Date(iso).toLocaleDateString("en-NG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+// items of a trip whose name contains the search text
+const itemHits = (trip, q) =>
+  trip.items.filter((i) => i.product_name.toLowerCase().includes(q));
+
+function tripMatches(trip, q) {
+  const text = [trip.store_name ?? "", formatDate(trip.date), longDate(trip.date)]
+    .join(" ")
+    .toLowerCase();
+  return text.includes(q) || itemHits(trip, q).length > 0;
+}
+
 export default function History() {
   const navigate = useNavigate();
   const { cart, refreshCart } = useCart();
@@ -22,8 +41,7 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
 
   const { dataVersion } = useSync();
 
@@ -56,35 +74,10 @@ export default function History() {
     }
   }
 
-  async function handleDelete(trip) {
-    const ok = window.confirm(
-      `Delete this shopping trip from ${formatDate(trip.date)}? This cannot be undone.`,
-    );
-    if (!ok) return;
-
-    try {
-      setDeletingId(trip.id);
-      setError("");
-      await api.deleteTrip(trip.id);
-      setTrips((current) => current.filter((item) => item.id !== trip.id));
-      setOpenId((current) => (current === trip.id ? null : current));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
   if (loading) return <p className="muted">Loading...</p>;
 
-  const query = search.trim().toLocaleLowerCase();
-  const filteredTrips = query
-    ? trips.filter((trip) =>
-        [trip.store_name, ...trip.items.map((item) => item.product_name)]
-          .filter(Boolean)
-          .some((value) => value.toLocaleLowerCase().includes(query)),
-      )
-    : trips;
+  const q = query.trim().toLowerCase();
+  const visible = q ? trips.filter((t) => tripMatches(t, q)) : trips;
 
   return (
     <>
@@ -95,10 +88,10 @@ export default function History() {
             <Search size={18} aria-hidden="true" />
             <input
               type="search"
-              placeholder="Search trips or products"
+              placeholder="Search store, item or date"
               aria-label="Search shopping history"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
             />
           </label>
         )}
@@ -110,14 +103,18 @@ export default function History() {
           <p>No finished trips yet.</p>
           <Link to="/">Start shopping</Link>
         </div>
-      ) : filteredTrips.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="card empty">
-          <p>No trips or products match “{search}”.</p>
+          <p>No trips match “{query.trim()}”.</p>
+          <button className="secondary" onClick={() => setQuery("")}>
+            Clear search
+          </button>
         </div>
       ) : (
         <div className="trip-list">
-          {filteredTrips.map((trip) => {
+          {visible.map((trip) => {
             const open = openId === trip.id;
+            const hits = q ? itemHits(trip, q) : [];
             return (
               <div key={trip.id} className="card trip">
                 <div className="trip-head">
@@ -127,6 +124,11 @@ export default function History() {
                       {trip.store_name || "No store"} · {trip.items.length}{" "}
                       {trip.items.length === 1 ? "item" : "items"}
                     </p>
+                    {hits.length > 0 && (
+                      <p className="muted trip-hits">
+                        Contains: {hits.map((i) => i.product_name).join(", ")}
+                      </p>
+                    )}
                   </div>
                   <div className="trip-money">
                     <strong>{formatMoney(trip.total)}</strong>
@@ -151,17 +153,9 @@ export default function History() {
                   </button>
                   <button
                     onClick={() => handleRepeat(trip)}
-                    disabled={busyId === trip.id || deletingId === trip.id}
+                    disabled={busyId === trip.id}
                   >
                     {busyId === trip.id ? "Copying..." : "Repeat this trip"}
-                  </button>
-                  <button
-                    className="danger-action"
-                    onClick={() => handleDelete(trip)}
-                    disabled={busyId === trip.id || deletingId === trip.id}
-                  >
-                    <Trash2 size={17} aria-hidden="true" />
-                    {deletingId === trip.id ? "Deleting..." : "Delete trip"}
                   </button>
                 </div>
 

@@ -64,11 +64,19 @@ export default function Cart() {
     }
   }
 
+  const total = cart.items.length;
+  const leftItems = cart.items.filter((i) => !i.checked);
+  const leftAmount = leftItems.reduce((sum, i) => sum + Number(i.line_total), 0);
+
   async function handleFinish() {
     const where = cart.store_name ? ` at ${cart.store_name}` : "";
+    const unticked =
+      leftItems.length > 0
+        ? `\n\n${leftItems.length} ${leftItems.length === 1 ? "item is" : "items are"} not ticked off yet.`
+        : "";
     if (
       !window.confirm(
-        `Finish this trip${where}? Prices you changed will be saved.`,
+        `Finish this trip${where}? Prices you changed will be saved.${unticked}`,
       )
     )
       return;
@@ -88,7 +96,6 @@ export default function Cart() {
     cart.budget && Number(cart.budget) > 0
       ? Math.min(100, (Number(cart.total) / Number(cart.budget)) * 100)
       : 0;
-  const boughtCount = cart.items.filter((item) => item.is_bought).length;
 
   return (
     <>
@@ -107,24 +114,24 @@ export default function Cart() {
               </Link>
             </div>
           ) : (
-            <>
-              <p className="cart-progress">
-                {boughtCount} bought · {cart.items.length - boughtCount} left
-              </p>
-              <div className="cart-list">
-                {cart.items.map((item) => (
-                  <CartItemRow
-                    key={`${item.id}:${item.quantity}:${item.price_paid}`}
-                    item={item}
-                  />
-                ))}
-              </div>
-            </>
+            <div className="cart-list">
+              {cart.items.map((item) => (
+                <CartItemRow key={item.id} item={item} />
+              ))}
+            </div>
           )}
         </div>
 
         <aside className="summary">
           <h2>This trip</h2>
+
+          {total > 0 && (
+            <p className="muted bought-progress" aria-live="polite">
+              {leftItems.length === 0
+                ? `All ${total} ${total === 1 ? "item" : "items"} bought`
+                : `${total - leftItems.length} of ${total} bought · ${leftItems.length} left (${formatMoney(leftAmount)})`}
+            </p>
+          )}
 
           <label>
             Store

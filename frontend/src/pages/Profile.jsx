@@ -1,113 +1,138 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useSync } from "../useSync";
 
 export default function Profile() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateUsername, changePassword } = useAuth();
+  const { online } = useSync();
+
   const [username, setUsername] = useState(user?.username ?? "");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [nameMsg, setNameMsg] = useState({ type: "", text: "" });
+  const [nameBusy, setNameBusy] = useState(false);
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setError("");
-    setMessage("");
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [pwMsg, setPwMsg] = useState({ type: "", text: "" });
+  const [pwBusy, setPwBusy] = useState(false);
 
-    if (!currentPassword) {
-      setError("Enter your current password to confirm these changes.");
-      return;
+  async function handleUsername(e) {
+    e.preventDefault();
+    const clean = username.trim();
+    if (clean === user.username) {
+      return setNameMsg({ type: "error", text: "That is already your username." });
     }
-    if (newPassword && newPassword !== confirmPassword) {
-      setError("The new passwords do not match.");
-      return;
-    }
-    if (username.trim() === user?.username && !newPassword) {
-      setError("There are no profile changes to save.");
-      return;
-    }
-
     try {
-      setBusy(true);
-      await updateProfile({
-        username: username.trim(),
-        current_password: currentPassword,
-        new_password: newPassword,
-      });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setMessage("Your profile has been updated.");
-    } catch (e) {
-      setError(e.message);
+      setNameBusy(true);
+      setNameMsg({ type: "", text: "" });
+      await updateUsername(clean);
+      setUsername(clean);
+      setNameMsg({ type: "ok", text: "Username updated." });
+    } catch (err) {
+      setNameMsg({ type: "error", text: err.message });
     } finally {
-      setBusy(false);
+      setNameBusy(false);
+    }
+  }
+
+  async function handlePassword(e) {
+    e.preventDefault();
+    if (!current || !next) {
+      return setPwMsg({ type: "error", text: "Fill in your current and new password." });
+    }
+    if (next !== confirm) {
+      return setPwMsg({ type: "error", text: "The new passwords do not match." });
+    }
+    try {
+      setPwBusy(true);
+      setPwMsg({ type: "", text: "" });
+      await changePassword(current, next);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setPwMsg({
+        type: "ok",
+        text: "Password changed. Your other devices will ask you to log in again.",
+      });
+    } catch (err) {
+      setPwMsg({ type: "error", text: err.message });
+    } finally {
+      setPwBusy(false);
     }
   }
 
   return (
     <>
       <h1>Your profile</h1>
-      <p className="muted profile-intro">
-        Update your username or password. We’ll ask for your current password
-        before saving.
-      </p>
-      <form className="card form profile-form" onSubmit={handleSubmit}>
+      {!online && (
+        <p className="muted">
+          You are offline. Reconnect to change your username or password.
+        </p>
+      )}
+
+      <form className="card form" onSubmit={handleUsername}>
+        <h2>Username</h2>
         <label>
           Username
           <input
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
             autoCapitalize="none"
-            required
-            minLength={3}
-            maxLength={30}
           />
         </label>
+        <p className="muted">3-30 letters, numbers, dots, dashes or underscores.</p>
+        {nameMsg.text && (
+          <p className={nameMsg.type === "ok" ? "notice" : "error"} role="status">
+            {nameMsg.text}
+          </p>
+        )}
+        <div className="form-actions">
+          <button type="submit" disabled={nameBusy || !online || !username.trim()}>
+            {nameBusy ? "Saving..." : "Save username"}
+          </button>
+        </div>
+      </form>
 
+      <form className="card form" onSubmit={handlePassword}>
+        <h2>Change password</h2>
         <label>
           Current password
           <input
             type="password"
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
             autoComplete="current-password"
-            required
           />
         </label>
-
         <label>
-          New password <span className="muted">(leave blank to keep it)</span>
+          New password
           <input
             type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
             autoComplete="new-password"
           />
         </label>
-
-        {newPassword && (
-          <label>
-            Confirm new password
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              required
-            />
-          </label>
+        <label>
+          Confirm new password
+          <input
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+          />
+        </label>
+        {pwMsg.text && (
+          <p className={pwMsg.type === "ok" ? "notice" : "error"} role="status">
+            {pwMsg.text}
+          </p>
         )}
-
-        {error && <p className="error" role="alert">{error}</p>}
-        {message && <p className="profile-success" role="status">{message}</p>}
-
-        <button type="submit" disabled={busy}>
-          {busy ? "Saving..." : "Save profile"}
-        </button>
+        <div className="form-actions">
+          <button type="submit" disabled={pwBusy || !online}>
+            {pwBusy ? "Saving..." : "Change password"}
+          </button>
+        </div>
       </form>
     </>
   );

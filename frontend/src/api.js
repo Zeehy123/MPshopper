@@ -11,6 +11,9 @@ async function must(table, id, label) {
   return row;
 }
 
+// a trip item whose product was deleted has no productId to look up
+const productOf = (id) => (id ? db.products.get(id) : Promise.resolve(undefined));
+
 // ---------- images: -> URLs for <img> ----------
 const urlCache = new Map();
 function imageUrl(p) {
@@ -52,18 +55,19 @@ async function productOut(p) {
 }
 
 async function itemOut(i) {
-  const p = await db.products.get(i.productId);
+  const p = await productOf(i.productId);
   return {
     id: i.id,
     trip: i.tripId,
     product: i.productId,
-    product_name: p?.name ?? "Deleted product",
-    product_unit: p?.unit ?? "",
+    // a deleted product's name was copied onto the item when it was deleted
+    product_name: p?.name || i.productName || "Deleted product",
+    product_unit: p?.unit || i.productUnit || "",
     product_image: imageUrl(p),
     quantity: i.quantity,
     price_paid: i.pricePaid,
-    is_bought: Boolean(i.isBought),
     line_total: round2(i.quantity * i.pricePaid),
+    checked: !!i.checked,
   };
 }
 
@@ -156,7 +160,6 @@ const localApi = {
       image: image instanceof Blob ? image : null,
       imagePending: image instanceof Blob,
       imageVersion: 1,
-      isBought: false,
       createdAt: now(),
     };
     await tx(async () => {
@@ -174,37 +177,43 @@ const localApi = {
 
   updateProduct: async (id, data) => {
     const product = await must("products", id, "Product");
-    const changedPrice =
-      "current_price" in data &&
-      Number(data.current_price) !== product.currentPrice;
+    let priceChanged = false;
+
     if ("name" in data) {
-      const name = String(data.name).trim();
+      const name = String(data.name || "").trim();
       if (!name) fail("Name is required.");
       product.name = name;
     }
     if ("unit" in data) {
-      const unit = String(data.unit).trim();
+      const unit = String(data.unit || "").trim();
       if (!unit) fail("Unit is required.");
       product.unit = unit;
     }
     if ("default_quantity" in data) {
-      const quantity = Number(data.default_quantity);
-      if (!(quantity > 0)) fail("Quantity must be above zero.");
-      product.defaultQuantity = quantity;
+      const qty = Number(data.default_quantity);
+      if (!(qty > 0)) fail("Quantity must be above zero.");
+      product.defaultQuantity = qty;
     }
     if ("category" in data) product.categoryId = data.category || null;
     if ("current_price" in data) {
       const price = Number(data.current_price);
       if (!(price > 0)) fail("Price must be above zero.");
+      priceChanged = price !== product.currentPrice;
       product.currentPrice = price;
     }
+    if (data.image instanceof Blob) {
+      product.image = data.image;
+      product.imagePending = true; // uploaded on the next sync
+      product.imageVersion = (product.imageVersion ?? 1) + 1;
+    }
+
     await tx(async () => {
       await save("products", product);
-      if (changedPrice) {
+      if (priceChanged) {
         await save("priceHistory", {
           id: newId(),
           productId: id,
-          storeId: null,
+          storeId: data.store || null,
           price: product.currentPrice,
           recordedAt: now(),
         });
@@ -213,19 +222,32 @@ const localApi = {
     return productOut(product);
   },
 
+  // Removes the product and its price history. Items in the open cart go too;
+  // finished trips keep their lines, with the product's name copied onto them.
   deleteProduct: async (id) => {
     const product = await must("products", id, "Product");
-    const tripItems = await db.tripItems.where("productId").equals(id).count();
-    if (tripItems) {
-      fail(
-        "This product is used in a shopping trip. Products in trip history cannot be deleted.",
-      );
-    }
-    const history = await db.priceHistory.where("productId").equals(id).toArray();
     await tx(async () => {
-      for (const entry of history) await remove("priceHistory", entry);
+      const items = await db.tripItems.where("productId").equals(id).toArray();
+      for (const item of items) {
+        const trip = await db.trips.get(item.tripId);
+        if (trip && !trip.isCompleted) {
+          await remove("tripItems", item);
+        } else {
+          item.productName = product.name;
+          item.productUnit = product.unit;
+          await save("tripItems", item);
+        }
+      }
+      const prices = await db.priceHistory.where("productId").equals(id).toArray();
+      for (const h of prices) await remove("priceHistory", h);
       await remove("products", product);
     });
+    const hit = urlCache.get(id);
+    if (hit) {
+      URL.revokeObjectURL(hit.url);
+      urlCache.delete(id);
+    }
+    return null;
   },
 
   // ----- categories and stores -----
@@ -331,7 +353,7 @@ const localApi = {
       productId: product,
       quantity: qty,
       pricePaid: p.currentPrice,
-      isBought: false,
+      checked: false,
       createdAt: now(),
     };
     await tx(() => save("tripItems", item));
@@ -350,7 +372,7 @@ const localApi = {
       if (!(Number(data.price_paid) > 0)) fail("Price must be more than zero.");
       item.pricePaid = Number(data.price_paid);
     }
-    if ("is_bought" in data) item.isBought = Boolean(data.is_bought);
+    if ("checked" in data) item.checked = !!data.checked;
     await tx(() => save("tripItems", item));
     return itemOut(item);
   },
@@ -376,7 +398,7 @@ const localApi = {
 
       // prices edited during the visit become the product's new price
       for (const item of items) {
-        const product = await db.products.get(item.productId);
+        const product = await productOf(item.productId);
         if (product && item.pricePaid !== product.currentPrice) {
           product.currentPrice = item.pricePaid;
           await save("products", product);
@@ -402,16 +424,6 @@ const localApi = {
     return Promise.all(trips.map(tripOut));
   },
 
-  deleteTrip: async (id) => {
-    const trip = await must("trips", id, "Trip");
-    if (!trip.isCompleted) fail("An active shopping cart cannot be deleted here.");
-    const items = await db.tripItems.where("tripId").equals(id).toArray();
-    await tx(async () => {
-      for (const item of items) await remove("tripItems", item);
-      await remove("trips", trip);
-    });
-  },
-
   repeatTrip: async (id) => {
     const old = await must("trips", id, "Trip");
     const openTrips = (await db.trips.toArray()).filter((t) => !t.isCompleted);
@@ -432,14 +444,15 @@ const localApi = {
       for (const t of openTrips) await remove("trips", t); // empty carts
       await save("trips", fresh);
       for (const i of oldItems) {
-        const p = await db.products.get(i.productId);
-        if (!p) continue;
+        const p = await productOf(i.productId);
+        if (!p) continue; // deleted products can't be re-bought
         await save("tripItems", {
           id: newId(),
           tripId: fresh.id,
           productId: p.id,
           quantity: i.quantity,
           pricePaid: p.currentPrice,
+          checked: false,
           createdAt: now(),
         });
       }
@@ -477,14 +490,15 @@ const localApi = {
       const cat = (p?.categoryId && cats[p.categoryId]) || "Uncategorised";
       byCategory[cat] = (byCategory[cat] || 0) + line;
 
-      top[i.productId] ??= {
-        product_id: i.productId,
-        name: p?.name ?? "Deleted product",
+      const key = i.productId ?? `deleted:${i.productName}`;
+      top[key] ??= {
+        product_id: key,
+        name: p?.name || i.productName || "Deleted product",
         trips: new Set(),
         total_quantity: 0,
       };
-      top[i.productId].trips.add(i.tripId);
-      top[i.productId].total_quantity += i.quantity;
+      top[key].trips.add(i.tripId);
+      top[key].total_quantity += i.quantity;
     }
 
     return {

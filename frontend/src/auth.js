@@ -40,22 +40,33 @@ export const loginRequest = (username, password) =>
 export const registerRequest = (username, password) =>
   post("/auth/register/", { username, password });
 
-export async function updateProfileRequest(data) {
+// requests that need the logged-in user's token
+async function authed(method, path, body) {
   let res;
   try {
-    res = await fetch(`${BASE}/auth/profile/`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-      },
-      body: JSON.stringify(data),
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(20000),
     });
   } catch {
     throw new Error("Could not reach the server. Check your connection.");
   }
-  const result = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(result.detail || "Profile update failed.");
-  return result;
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    clearAuth();
+    window.dispatchEvent(new Event("auth-expired"));
+    throw new Error("Session expired. Please log in again.");
+  }
+  if (!res.ok) throw new Error(data.detail || "Request failed.");
+  return data;
 }
+
+export const updateProfileRequest = (username) =>
+  authed("PATCH", "/auth/profile/", { username });
+export const changePasswordRequest = (currentPassword, newPassword) =>
+  authed("POST", "/auth/password/", {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });

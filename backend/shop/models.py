@@ -104,15 +104,19 @@ class Trip(SyncModel):
 class TripItem(SyncModel):
     trip = models.ForeignKey(
         Trip, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    # SET_NULL so a product can be deleted without erasing past trips
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    # name/unit are stamped on when the product is deleted, so history stays readable
+    product_name = models.CharField(max_length=150, blank=True, default='')
+    product_unit = models.CharField(max_length=30, blank=True, default='')
     quantity = models.DecimalField(
         max_digits=8, decimal_places=2, default=Decimal('1'))
     price_paid = models.DecimalField(max_digits=10, decimal_places=2)
-    is_bought = models.BooleanField(default=False)
+    is_checked = models.BooleanField(default=False)  # ticked off in the cart
     created_at = models.DateTimeField(default=timezone.now)
     @property
     def line_total(self):
         return self.quantity * self.price_paid
 
     def __str__(self):
-        return f'{self.quantity} x {self.product.name}'
+        return f'{self.quantity} x {self.product.name if self.product else self.product_name}'
