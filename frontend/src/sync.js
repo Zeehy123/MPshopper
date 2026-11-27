@@ -9,6 +9,7 @@ const ORDER = [
   "priceHistory",
   "trips",
   "tripItems",
+  "pantry",
 ];
 
 async function call(path, options = {}) {
@@ -44,6 +45,14 @@ const toWire = {
     category_id: r.categoryId,
     default_quantity: r.defaultQuantity,
     current_price: r.currentPrice,
+    barcode: r.barcode ?? "",
+    updated_at: r.updatedAt,
+  }),
+  pantry: (r) => ({
+    id: r.id,
+    product_id: r.productId,
+    quantity: r.quantity,
+    low_at: r.lowAt,
     updated_at: r.updatedAt,
   }),
   priceHistory: (r) => ({
@@ -92,6 +101,7 @@ const fromWire = {
     categoryId: w.category_id,
     defaultQuantity: Number(w.default_quantity),
     currentPrice: Number(w.current_price),
+    barcode: w.barcode ?? "",
 
     image: images[w.id] ?? old?.image ?? null,
     imageUrl: w.image ?? old?.imageUrl ?? null,
@@ -100,6 +110,13 @@ const fromWire = {
       ? (old?.imageVersion ?? 0) + 1
       : (old?.imageVersion ?? 1),
     createdAt: old?.createdAt ?? w.modified_at,
+    updatedAt: w.modified_at,
+  }),
+  pantry: (w) => ({
+    id: w.id,
+    productId: w.product_id,
+    quantity: Number(w.quantity),
+    lowAt: Number(w.low_at),
     updatedAt: w.modified_at,
   }),
   priceHistory: (w) => ({
@@ -216,13 +233,25 @@ async function pull() {
 
   // download new pictures first
   const images = {};
+  const reupload = new Set(); // pictures this device has but the server has lost
   for (const w of data.changes.products ?? []) {
-    if (!w.image) continue;
     const old = await db.products.get(w.id);
+    if (!w.image) {
+      if (old?.image && !old.imagePending) reupload.add(w.id);
+      continue;
+    }
     if (old?.imageUrl === w.image) continue;
     try {
-      images[w.id] = await (await fetch(w.image)).blob();
-    } catch {}
+      const res = await fetch(w.image);
+      // only keep a real picture: an error page must never replace a good one
+      if (res.ok && (res.headers.get("content-type") || "").startsWith("image/")) {
+        images[w.id] = await res.blob();
+      } else if (old?.image) {
+        reupload.add(w.id); // the server's copy is gone; send ours again
+      }
+    } catch {
+      /* offline or blocked: try again on the next sync */
+    }
   }
 
   let changed = 0;
@@ -239,6 +268,10 @@ async function pull() {
       if (pending.has(`${d.table}:${d.id}`)) continue;
       await db[d.table].delete(d.id);
       changed++;
+    }
+    for (const id of reupload) {
+      const p = await db.products.get(id);
+      if (p?.image) await db.products.update(id, { imagePending: true });
     }
     await db.meta.put({ key: "cursor", value: data.cursor });
   });

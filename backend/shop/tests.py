@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Category, Product, Tombstone, Trip, TripItem
+from .models import Category, PantryItem, Product, Tombstone, Trip, TripItem
 
 
 class SyncPullTests(TestCase):
@@ -201,3 +201,148 @@ class CheckedItemSyncTests(TestCase):
         self.assertFalse(Trip.objects.filter(pk=trip.pk).exists())
         self.assertFalse(TripItem.objects.filter(pk=self.item.pk).exists())
         self.assertTrue(Product.objects.filter(pk=product.pk).exists())
+
+
+class BarcodeSyncTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='scanner', password='test-password',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _push_product(self, cid, barcode):
+        return self.client.post(
+            '/api/sync/push/',
+            {
+                'upserts': {
+                    'products': [{
+                        'id': cid, 'name': 'Milk', 'unit': 'carton',
+                        'category_id': None, 'default_quantity': '1',
+                        'current_price': '950', 'barcode': barcode,
+                        'updated_at': timezone.now().isoformat(),
+                    }],
+                },
+                'deletes': [],
+            },
+            format='json',
+        )
+
+    def test_push_saves_the_barcode(self):
+        cid = '33333333-3333-3333-3333-333333333333'
+        self.assertEqual(self._push_product(cid, ' 5449000000996 ').status_code, 200)
+        self.assertEqual(Product.objects.get(client_id=cid).barcode, '5449000000996')
+
+    def test_pull_returns_the_barcode(self):
+        Product.objects.create(
+            owner=self.user, name='Milk', unit='carton',
+            current_price='950', barcode='5449000000996',
+        )
+        response = self.client.get('/api/sync/pull/')
+        self.assertEqual(response.data['changes']['products'][0]['barcode'], '5449000000996')
+
+    def test_a_missing_barcode_is_stored_as_empty(self):
+        cid = '44444444-4444-4444-4444-444444444444'
+        self.assertEqual(self._push_product(cid, None).status_code, 200)
+        self.assertEqual(Product.objects.get(client_id=cid).barcode, '')
+
+
+class PantrySyncTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='cook', password='test-password',
+        )
+        self.product = Product.objects.create(
+            owner=self.user, name='Rice', unit='bag', current_price='5000',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _push(self, quantity, low_at, cid='55555555-5555-5555-5555-555555555555'):
+        return self.client.post(
+            '/api/sync/push/',
+            {
+                'upserts': {
+                    'pantry': [{
+                        'id': cid, 'product_id': str(self.product.client_id),
+                        'quantity': quantity, 'low_at': low_at,
+                        'updated_at': timezone.now().isoformat(),
+                    }],
+                },
+                'deletes': [],
+            },
+            format='json',
+        )
+
+    def test_push_creates_a_pantry_entry(self):
+        self.assertEqual(self._push('3', '1').status_code, 200)
+        entry = PantryItem.objects.get()
+        self.assertEqual(entry.owner, self.user)
+        self.assertEqual(entry.product, self.product)
+        self.assertEqual(str(entry.quantity), '3.00')
+
+    def test_negative_amounts_are_rejected(self):
+        response = self._push('-1', '1')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(PantryItem.objects.exists())
+
+    def test_pull_returns_only_my_pantry(self):
+        PantryItem.objects.create(owner=self.user, product=self.product, quantity='2')
+        stranger = get_user_model().objects.create_user(
+            username='stranger', password='test-password',
+        )
+        other_product = Product.objects.create(
+            owner=stranger, name='Beans', unit='kg', current_price='1000',
+        )
+        PantryItem.objects.create(owner=stranger, product=other_product, quantity='9')
+
+        response = self.client.get('/api/sync/pull/')
+        rows = response.data['changes']['pantry']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['product_id'], str(self.product.client_id))
+
+    def test_deleting_a_product_removes_its_pantry_entry(self):
+        PantryItem.objects.create(owner=self.user, product=self.product, quantity='2')
+        response = self.client.post(
+            '/api/sync/push/',
+            {
+                'upserts': {},
+                'deletes': [{'table': 'products', 'id': str(self.product.client_id)}],
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(PantryItem.objects.exists())
+
+
+class ProductDeleteKeepsHistoryTests(TestCase):
+    def test_trip_item_survives_with_its_snapshot_when_the_product_is_deleted(self):
+        user = get_user_model().objects.create_user(
+            username='keeper', password='test-password',
+        )
+        product = Product.objects.create(
+            owner=user, name='Tomatoes', unit='basket', current_price='2000',
+        )
+        trip = Trip.objects.create(owner=user, is_completed=True)
+        item = TripItem.objects.create(
+            owner=user, trip=trip, product=product,
+            product_name='Tomatoes', product_unit='basket',
+            quantity='2', price_paid='2000',
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post(
+            '/api/sync/push/',
+            {
+                'upserts': {},
+                'deletes': [{'table': 'products', 'id': str(product.client_id)}],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertIsNone(item.product)
+        self.assertEqual(item.product_name, 'Tomatoes')
+        self.assertTrue(Tombstone.objects.filter(table='products', owner=user).exists())

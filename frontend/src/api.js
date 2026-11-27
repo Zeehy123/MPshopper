@@ -1,4 +1,6 @@
 import { db, tx, newId, now, save, remove } from "./db";
+import { normalizeBarcode } from "./barcode";
+import { isLow, itemsToStock, onePerProduct } from "./pantryLogic";
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const fail = (msg) => {
@@ -12,6 +14,15 @@ async function must(table, id, label) {
 }
 
 // a trip item whose product was deleted has no productId to look up
+// two products may not share a barcode, or scanning could not tell them apart
+async function assertBarcodeFree(code, exceptId = null) {
+  if (!code) return;
+  const clash = await db.products.where("barcode").equals(code).first();
+  if (clash && clash.id !== exceptId) {
+    fail(`That barcode already belongs to "${clash.name}".`);
+  }
+}
+
 const productOf = (id) => (id ? db.products.get(id) : Promise.resolve(undefined));
 
 // ---------- images: -> URLs for <img> ----------
@@ -45,6 +56,7 @@ async function productOut(p) {
     category: p.categoryId,
     category_name: category?.name ?? null,
     unit: p.unit,
+    barcode: p.barcode ?? "",
     default_quantity: p.defaultQuantity,
     current_price: p.currentPrice,
     previous_price: previous,
@@ -124,6 +136,74 @@ async function assertEditable(tripId) {
 }
 
 const localApi = {
+  // ----- barcodes -----
+  findByBarcode: async (code) => {
+    const clean = normalizeBarcode(code);
+    if (!clean) return null;
+    const p = await db.products.where("barcode").equals(clean).first();
+    return p ? productOut(p) : null;
+  },
+
+  // ----- pantry -----
+  getPantry: async () => {
+    const rows = [];
+    for (const e of onePerProduct(await db.pantry.toArray())) {
+      const p = await productOf(e.productId);
+      if (!p) continue;
+      rows.push({
+        id: e.id,
+        product: p.id,
+        name: p.name,
+        unit: p.unit,
+        image: imageUrl(p),
+        default_quantity: p.defaultQuantity,
+        quantity: e.quantity,
+        low_at: e.lowAt,
+        is_low: isLow(e.quantity, e.lowAt),
+      });
+    }
+    // running-low items first, then A to Z
+    return rows.sort(
+      (a, b) => Number(b.is_low) - Number(a.is_low) || a.name.localeCompare(b.name),
+    );
+  },
+
+  trackPantry: async ({ product, quantity, low_at }) => {
+    await must("products", product, "Product");
+    const qty = Number(quantity);
+    const low = Number(low_at);
+    if (!(qty >= 0)) fail("Amount cannot be negative.");
+    if (!(low >= 0)) fail("The low level cannot be negative.");
+    const exists = await db.pantry.where("productId").equals(product).count();
+    if (exists) fail("That product is already in your pantry.");
+    await tx(() =>
+      save("pantry", {
+        id: newId(),
+        productId: product,
+        quantity: round2(qty),
+        lowAt: round2(low),
+      }),
+    );
+  },
+
+  updatePantry: async (id, data) => {
+    const entry = await must("pantry", id, "Pantry item");
+    if ("quantity" in data) {
+      if (!(Number(data.quantity) >= 0)) fail("Amount cannot be negative.");
+      entry.quantity = round2(data.quantity);
+    }
+    if ("low_at" in data) {
+      if (!(Number(data.low_at) >= 0)) fail("The low level cannot be negative.");
+      entry.lowAt = round2(data.low_at);
+    }
+    await tx(() => save("pantry", entry));
+  },
+
+  removePantry: async (id) => {
+    const entry = await must("pantry", id, "Pantry item");
+    await tx(() => remove("pantry", entry));
+  },
+
   // ----- products -----
   getProducts: async (query = "") => {
     const params = new URLSearchParams(query);
@@ -149,11 +229,15 @@ const localApi = {
     if (!(price > 0)) fail("Price must be above zero.");
     if (!(qty > 0)) fail("Quantity must be above zero.");
 
+    const barcode = normalizeBarcode(fd.get("barcode"));
+    await assertBarcodeFree(barcode);
+
     const image = fd.get("image");
     const product = {
       id: newId(),
       name,
       unit,
+      barcode,
       defaultQuantity: qty,
       currentPrice: price,
       categoryId: fd.get("category") || null,
@@ -195,6 +279,11 @@ const localApi = {
       product.defaultQuantity = qty;
     }
     if ("category" in data) product.categoryId = data.category || null;
+    if ("barcode" in data) {
+      const barcode = normalizeBarcode(data.barcode);
+      await assertBarcodeFree(barcode, id);
+      product.barcode = barcode;
+    }
     if ("current_price" in data) {
       const price = Number(data.current_price);
       if (!(price > 0)) fail("Price must be above zero.");
@@ -240,6 +329,8 @@ const localApi = {
       }
       const prices = await db.priceHistory.where("productId").equals(id).toArray();
       for (const h of prices) await remove("priceHistory", h);
+      const stock = await db.pantry.where("productId").equals(id).toArray();
+      for (const s of stock) await remove("pantry", s);
       await remove("products", product);
     });
     const hit = urlCache.get(id);
@@ -412,6 +503,17 @@ const localApi = {
             recordedAt: now(),
           });
         }
+      }
+
+      // what was bought goes into the pantry, for products being tracked there
+      const tracked = new Map(
+        onePerProduct(await db.pantry.toArray()).map((e) => [e.productId, e]),
+      );
+      for (const item of itemsToStock(items)) {
+        const entry = tracked.get(item.productId);
+        if (!entry) continue;
+        entry.quantity = round2(entry.quantity + item.quantity);
+        await save("pantry", entry);
       }
     });
     return tripOut(trip);

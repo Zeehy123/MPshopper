@@ -13,6 +13,12 @@ db.version(1).stores({
   meta: "key",
 });
 
+// version 2: barcodes on products, and the pantry (what is at home)
+db.version(2).stores({
+  products: "id, name, categoryId, serverId, barcode",
+  pantry: "id, productId, serverId",
+});
+
 export const newId = () => crypto.randomUUID();
 
 // timestamps that always increase, so records created together keep their order

@@ -19,6 +19,11 @@ A personal grocery shopping app that works **offline**. Keep your own price list
 - **Stats.** Monthly spending, spending by category, most-bought items, and a "where is it cheapest?" store comparison per product.
 - **Works offline.** Everything is stored on the device first. Changes sync automatically when you are back online.
 - **Installable (PWA)** with a mobile-first layout and a bottom tab bar on phones.
+- **Edit and delete products**, search your history, and manage your profile (username and password).
+- **Tick items off in the cart** as you shop; bought items fade so you can see what is left.
+- **Barcode scanning.** Scan a product to add it to your cart, or scan an unknown one to create it (the name is suggested from the open Open Food Facts database). Works with the camera in Chrome and Edge; elsewhere, type the number or use a USB scanner.
+- **Pantry.** Track what you have at home, set a "running low" level, and add low items to the cart in one tap. Finishing a trip restocks the pantry automatically.
+- **Pictures are shrunk on your phone** before saving, so uploads are quick and light on data.
 - **Accounts.** Each person only ever sees their own data.
 
 ## How it works
@@ -114,12 +119,23 @@ MPshopper/
 
 - Conflicts are resolved by **last edit wins**. That is fine for one person on a few devices, but it is not a collaborative editor.
 - On the free hosting plan the API sleeps when idle, so the first sync after a quiet spell can take up to a minute. The app itself still opens and works offline.
-- Products can be created and re-priced, but there is no screen yet to rename or delete them.
 - There is no password reset yet.
 
 ## Roadmap
 
-Meal planner that builds a list from recipes, pantry tracking, shared family lists, barcode scanning, client-side image compression, automated tests.
+Meal planner that builds a shopping list from recipes (using what the pantry already has), and shared family lists.
+
+## Running the tests
+
+```bash
+# frontend: the app's logic (image sizing, barcode checks, pantry rules)
+cd frontend
+npm test
+
+# backend: sync, accounts and the data rules
+cd backend
+python manage.py test
+```
 
 ## Author
 

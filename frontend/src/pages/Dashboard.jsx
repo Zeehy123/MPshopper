@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Sprout } from "lucide-react";
+import { Plus, ScanLine, Search, Sprout } from "lucide-react";
 import { api } from "../api";
 import { useSync } from "../useSync";
 import ProductCard from "../components/ProductCard";
+import Scanner from "../components/Scanner";
+import { useCart } from "../context/CartContext";
+import { normalizeBarcode } from "../barcode";
 
 export default function Dashboard() {
   const [products, setProducts] = useState([]);
@@ -13,6 +16,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { dataVersion } = useSync();
+  const { inCart, addToCart } = useCart();
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null); // what the last scan did
 
   useEffect(() => {
     api
@@ -50,6 +56,27 @@ export default function Dashboard() {
     setProducts((list) => list.filter((p) => p.id !== id));
   }
 
+  // a scanned code: add the matching product to the cart, or offer to create it
+  async function handleScan(code) {
+    const clean = normalizeBarcode(code);
+    try {
+      const product = await api.findByBarcode(clean);
+      if (!product) return setScanResult({ type: "missing", code: clean });
+      if (inCart(product.id)) {
+        return setScanResult({ type: "info", text: `${product.name} is already in your cart.` });
+      }
+      await addToCart(product);
+      setScanResult({ type: "ok", text: `Added ${product.name} to your cart.` });
+    } catch (e) {
+      setScanResult({ type: "error", text: e.message });
+    }
+  }
+
+  function closeScanner() {
+    setScanning(false);
+    setScanResult(null);
+  }
+
   const filtering = search || category;
 
   return (
@@ -66,7 +93,29 @@ export default function Dashboard() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
+        <button type="button" className="secondary scan-btn" onClick={() => setScanning(true)}>
+          <ScanLine size={18} aria-hidden="true" /> Scan
+        </button>
       </div>
+
+      {scanning && (
+        <Scanner onDetect={handleScan} onClose={closeScanner}>
+          {scanResult?.type === "missing" ? (
+            <div className="scan-result" role="status">
+              <p>No product on your shelf has the barcode {scanResult.code}.</p>
+              <Link to={`/add?barcode=${scanResult.code}`} className="btn-link">
+                <Plus size={18} aria-hidden="true" /> Add it as a new product
+              </Link>
+            </div>
+          ) : scanResult ? (
+            <p className={scanResult.type === "error" ? "error" : "notice"} role="status">
+              {scanResult.text}
+            </p>
+          ) : (
+            <p className="muted">Point the camera at a product's barcode to add it to your cart.</p>
+          )}
+        </Scanner>
+      )}
 
       <div className="chips" role="group" aria-label="Filter by category">
         <button className={category === "" ? "chip active" : "chip"} onClick={() => setCategory("")}>

@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
-    Category, Store, Product, PriceHistory, Trip, TripItem, Tombstone,
+    Category, Store, Product, PriceHistory, Trip, TripItem, Tombstone, PantryItem,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,12 +26,14 @@ MODELS = {
     'priceHistory': PriceHistory,
     'trips': Trip,
     'tripItems': TripItem,
+    'pantry': PantryItem,
 }
 RELATED = {
     'products': ('category',),
     'priceHistory': ('product', 'store'),
     'trips': ('store',),
     'tripItems': ('trip', 'product'),
+    'pantry': ('product',),
 }
 
 
@@ -78,6 +80,15 @@ def fields(table, w, owner):
             'category': ref(Category, w.get('category_id'), owner),
             'default_quantity': dec(w['default_quantity']),
             'current_price': dec(w['current_price']),
+            'barcode': (w.get('barcode') or '').strip()[:32],
+        }
+    if table == 'pantry':
+        quantity, low_at = dec(w['quantity']), dec(w['low_at'])
+        if quantity < 0 or low_at < 0:
+            raise SyncError('Pantry amounts cannot be negative')
+        return {
+            'product': ref(Product, w['product_id'], owner),
+            'quantity': quantity, 'low_at': low_at,
         }
     if table == 'priceHistory':
         return {
@@ -164,7 +175,13 @@ def wire(table, o, request):
             name=o.name, unit=o.unit, category_id=cid(o.category),
             default_quantity=str(o.default_quantity),
             current_price=str(o.current_price),
+            barcode=o.barcode,
             image=product_image(o, request),
+        )
+    elif table == 'pantry':
+        out.update(
+            product_id=cid(o.product),
+            quantity=str(o.quantity), low_at=str(o.low_at),
         )
     elif table == 'priceHistory':
         out.update(

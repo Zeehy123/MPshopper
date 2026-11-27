@@ -59,6 +59,7 @@ class Product(SyncModel):
     default_quantity = models.DecimalField(
         max_digits=8, decimal_places=2, default=Decimal('1'))
     current_price = models.DecimalField(max_digits=10, decimal_places=2)
+    barcode = models.CharField(max_length=32, blank=True, default='', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -120,3 +121,16 @@ class TripItem(SyncModel):
 
     def __str__(self):
         return f'{self.quantity} x {self.product.name if self.product else self.product_name}'
+
+
+class PantryItem(SyncModel):
+    # how much of a product is at home, and the level at which it counts as running low
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='pantry_entries')
+    quantity = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('0'))
+    low_at = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('1'))
+
+    def __str__(self):
+        return f'{self.quantity} of {self.product.name} at home'

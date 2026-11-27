@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Store, CirclePlus, ShoppingBasket, History, ChartColumn, LogOut, Leaf, UserRound } from "lucide-react";
+import { Store, CirclePlus, ShoppingBasket, History, ChartColumn, LogOut, Leaf, UserRound, Refrigerator, Ellipsis } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import SyncStatus from "./SyncStatus";
@@ -8,11 +8,19 @@ const TABS = [
   { to: "/", label: "Shop", Icon: Store, end: true },
   { to: "/add", label: "Add", Icon: CirclePlus },
   { to: "/cart", label: "Cart", Icon: ShoppingBasket, cart: true },
+  { to: "/pantry", label: "Pantry", Icon: Refrigerator },
   { to: "/history", label: "History", Icon: History },
   { to: "/stats", label: "Stats", Icon: ChartColumn },
 ];
 
-const MOBILE_TABS = [...TABS, { to: "/profile", label: "Profile", Icon: UserRound }];
+// five tabs fit a phone; History, Stats and Profile are reached through "More"
+const MOBILE_TABS = [
+  { to: "/", label: "Shop", Icon: Store, end: true },
+  { to: "/add", label: "Add", Icon: CirclePlus },
+  { to: "/cart", label: "Cart", Icon: ShoppingBasket, cart: true },
+  { to: "/pantry", label: "Pantry", Icon: Refrigerator },
+  { to: "/more", label: "More", Icon: Ellipsis },
+];
 
 export default function Navbar() {
   const { itemCount } = useCart();
